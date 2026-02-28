@@ -34,7 +34,7 @@ import { useSnackbar } from "notistack";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { alpha } from "@mui/material";
 import dayjs from "dayjs";
 import api from "@/lib/axios";
