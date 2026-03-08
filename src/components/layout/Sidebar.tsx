@@ -88,11 +88,6 @@ const NAV_GROUPS = [
         icon: <CategoryRounded />,
         href: "/template-categories",
       },
-      {
-        label: "Calculators",
-        icon: <CalculateRounded />,
-        href: "/calculators",
-      },
     ],
   },
   {

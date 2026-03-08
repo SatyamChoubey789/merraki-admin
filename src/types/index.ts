@@ -1,3 +1,4 @@
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 export interface DashboardStats {
   totalUsers: number;
   activeUsers: number;
@@ -27,6 +28,7 @@ export interface DashboardStats {
   };
 }
 
+// ── Activity ──────────────────────────────────────────────────────────────────
 export interface ActivityLog {
   id: string;
   adminName: string;
@@ -37,6 +39,7 @@ export interface ActivityLog {
   timestamp: string;
 }
 
+// ── Orders ────────────────────────────────────────────────────────────────────
 export interface Order {
   id: string;
   customerName: string;
@@ -55,6 +58,7 @@ export interface Order {
   }>;
 }
 
+// ── Users ─────────────────────────────────────────────────────────────────────
 export interface User {
   id: string;
   name: string;
@@ -68,25 +72,7 @@ export interface User {
   createdAt: string;
 }
 
-export interface BlogPost {
-  id: string;
-  title: string;
-  slug: string;
-  excerpt?: string;
-  content?: string;
-  coverImage?: string;
-  status: string;
-  featured?: boolean;
-  tags?: string[];
-  readingTime?: number;
-  scheduledAt?: string;
-  metaTitle?: string;
-  metaDescription?: string;
-  ogImage?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
+// ── Admin ─────────────────────────────────────────────────────────────────────
 export interface AdminUser {
   id: string;
   email: string;
@@ -95,6 +81,7 @@ export interface AdminUser {
   permissions: string[];
 }
 
+// ── Newsletter ────────────────────────────────────────────────────────────────
 export interface Newsletter {
   id: string;
   subject: string;
@@ -113,6 +100,7 @@ export interface NewsletterSubscriber {
   subscribedAt: string;
 }
 
+// ── Contact ───────────────────────────────────────────────────────────────────
 export interface Contact {
   id: string;
   name: string;
@@ -130,6 +118,20 @@ export interface Contact {
   }>;
 }
 
+// ── Templates ─────────────────────────────────────────────────────────────────
+export interface TemplateCategory {
+  id: number;
+  name: string;
+  slug: string;
+  color: string;
+  icon: string;
+  sort_order: number;
+  is_active: boolean;
+  template_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Template {
   id: number;
   slug: string;
@@ -138,13 +140,7 @@ export interface Template {
   detailed_description?: string;
   price_inr: number;
   category_id: number;
-  category?: {
-    id: number;
-    name: string;
-    slug: string;
-    color: string;
-    icon: string;
-  };
+  category?: TemplateCategory;
   tags: string[] | null;
   downloads_count: number;
   views_count: number;
@@ -160,38 +156,89 @@ export interface Template {
   updated_at: string;
 }
 
-export interface test{
-  id: string;
+// ── Blog — aligned to Go structs ──────────────────────────────────────────────
+
+/**
+ * Matches Go BlogAuthor struct.
+ * social_links is JSONMap in Go → keyed object in TS.
+ */
+export interface BlogAuthor {
+  id: number;
+  admin_id?: number;
   name: string;
+  slug: string;
+  email?: string;
+  bio?: string;
+  avatar_url?: string;
+  social_links?: {
+    twitter?: string;
+    linkedin?: string;
+    website?: string;
+    github?: string;
+    instagram?: string;
+    [key: string]: string | undefined;
+  };
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  post_count?: number;
+}
+
+/**
+ * Matches Go BlogCategory struct.
+ * Supports nested categories via parent_id.
+ */
+export interface BlogCategory {
+  id: number;
+  name: string;
+  slug: string;
   description?: string;
-  createdAt: string;
+  parent_id?: number;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  post_count?: number;
 }
 
-export interface TestQuestion{
-  id: string;
-  testId: string;
-  orderNumber: number;
-  category: string;
-  weight: number;
-  questionText: string;
-  questionType: "multiple-choice" | "true-false" | "short-answer";
-  question: string;
-  options: string[];
-  correctAnswer: string;
+/**
+ * Matches Go BlogPost + BlogPostWithRelations.
+ * author / category are optional joined fields from list & detail APIs.
+ * is_featured intentionally omitted — not used on frontend.
+ */
+export interface BlogPost {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  content: string;
+  featured_image_url?: string;
+  author_id?: number;
+  category_id?: number;
+  tags: string[] | null;
+  meta_title?: string;
+  meta_description?: string;
+  meta_keywords?: string[] | null;
+  status: "draft" | "published" | "scheduled" | "archived";
+  views_count: number;
+  reading_time_minutes?: number;
+  published_at?: string;
+  created_at: string;
+  updated_at: string;
+  author?: BlogAuthor;
+  category?: BlogCategory;
 }
 
-export interface TestSubmission{
-  id: string;
-  testId: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  completedAt: string;
-  answers: Array<{
-    questionId: string;
-    selectedOption: string;
-    isCorrect: boolean;
-  }>;
-  score: number;
-  submittedAt: string;
+// ── Generic paginated response wrapper ───────────────────────────────────────
+export interface PaginatedResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: {
+    total: number;
+    page: number;
+    pages: number;
+    limit: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
 }
