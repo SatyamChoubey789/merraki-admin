@@ -529,7 +529,7 @@ export default function BlogPage() {
   const [readingTime, setReadingTime] = useState(0);
 
   const endpoint =
-    `/admin/blog?page=${page + 1}&limit=20` +
+    `/admin/blog/posts?page=${page + 1}&limit=20` +
     (statusFilter ? `&status=${statusFilter}` : "") +
     (search ? `&search=${encodeURIComponent(search)}` : "");
 
@@ -654,10 +654,10 @@ export default function BlogPage() {
       };
 
       if (editPost) {
-        await api.put(`/admin/blog/${editPost.id}`, payload);
+        await api.put(`/admin/blog/posts/${editPost.id}`, payload);
         enqueueSnackbar("Post updated", { variant: "success" });
       } else {
-        await api.post("/admin/blog", payload);
+        await api.post("/admin/blog/posts", payload);
         enqueueSnackbar("Post created", { variant: "success" });
       }
       await mutate();
@@ -675,7 +675,7 @@ export default function BlogPage() {
   const handlePublishToggle = async (post: BlogPost) => {
     const newStatus = post.status === "published" ? "draft" : "published";
     try {
-      await api.put(`/admin/blog/${post.id}`, {
+      await api.put(`/admin/blog/posts/${post.id}`, {
         status: newStatus,
         published_at:
           newStatus === "published" ? new Date().toISOString() : null,
@@ -695,7 +695,7 @@ export default function BlogPage() {
     if (deleteId === null) return;
     setDeleteLoading(true);
     try {
-      await api.delete(`/admin/blog/${deleteId}`);
+      await api.delete(`/admin/blog/posts/${deleteId}`);
       enqueueSnackbar("Post deleted", { variant: "success" });
       await mutate();
     } catch {
