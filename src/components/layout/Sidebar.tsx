@@ -74,7 +74,6 @@ const NAV_GROUPS = [
         href: "/blog/authors",
         permission: "blog",
       },
-      { label: "Tests", icon: <AssignmentRounded />, href: "/tests" },
       { label: "Contacts", icon: <ContactMailRounded />, href: "/contacts" },
       { label: "Newsletter", icon: <EmailRounded />, href: "/newsletter" },
     ],
