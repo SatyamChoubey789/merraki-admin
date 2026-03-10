@@ -676,6 +676,8 @@ export default function BlogPage() {
     const newStatus = post.status === "published" ? "draft" : "published";
     try {
       await api.put(`/admin/blog/posts/${post.id}`, {
+        title: post.title,
+        content: post.content,
         status: newStatus,
         published_at:
           newStatus === "published" ? new Date().toISOString() : null,
