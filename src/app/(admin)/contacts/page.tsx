@@ -1,38 +1,14 @@
 "use client";
 import { useState, useCallback } from "react";
 import {
-  Box,
-  Button,
-  IconButton,
-  Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Typography,
-  Paper,
-  Tabs,
-  Tab,
-  Chip,
-  Divider,
-  Avatar,
-  Skeleton,
+  Box, Button, IconButton, Tooltip, Dialog, DialogTitle, DialogContent,
+  DialogActions, TextField, Select, MenuItem, FormControl, InputLabel,
+  Typography, Paper, Tabs, Tab, Chip, Divider, Avatar, Skeleton,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import {
-  VisibilityRounded,
-  DeleteRounded,
-  ReplyRounded,
-  MarkEmailReadRounded,
-  MailOutlineRounded,
-  CheckCircleOutlineRounded,
-  HourglassEmptyRounded,
-  InboxRounded,
+  VisibilityRounded, DeleteRounded, ReplyRounded, MarkEmailReadRounded,
+  MailOutlineRounded, CheckCircleOutlineRounded, HourglassEmptyRounded, InboxRounded,
 } from "@mui/icons-material";
 import useSWR from "swr";
 import { useSnackbar } from "notistack";
@@ -40,13 +16,8 @@ import { motion } from "framer-motion";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RTooltip,
-  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RTooltip, ResponsiveContainer,
 } from "recharts";
 import PageWrapper from "@/components/layout/PageWrapper";
 import DataTable, { Column } from "@/components/ui/DataTable";
@@ -71,7 +42,7 @@ const STATUS_LABELS: Record<ContactStatus, string> = {
   closed: "Closed",
 };
 
-// ── Types (snake_case to match Go API) ────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface ContactReply {
   id: number;
   message: string;
@@ -80,7 +51,7 @@ interface ContactReply {
 }
 
 interface Contact {
-  id: number;              // API returns number
+  id: number;
   name: string;
   email: string;
   phone?: string;
@@ -88,13 +59,13 @@ interface Contact {
   message: string;
   status: ContactStatus;
   replies?: ContactReply[];
-  created_at: string;      // snake_case
+  created_at: string;
   updated_at: string;
 }
 
 interface PaginatedResponse {
   success: boolean;
-  data: Contact[] | null;  // API returns null when empty
+  data: Contact[] | null;
   pagination: {
     total: number;
     page: number;
@@ -105,21 +76,36 @@ interface PaginatedResponse {
   };
 }
 
-interface AnalyticsData {
-  data: {
-    total?: number;
-    pending?: number;
-    resolved?: number;
-    avg_response_time?: string;
-    by_status?: Array<{ status: string; count: number }>;
-    monthly?: Array<{ month: string; count: number }>;
-  };
+// All fields optional — API may omit any of them
+interface AnalyticsPayload {
+  total?: number;
+  pending?: number;
+  resolved?: number;
+  avg_response_time?: string;
+  by_status?: Array<{ status: string; count: number }>;
+  monthly?: Array<{ month: string; count: number }>;
+}
+
+interface AnalyticsResponse {
+  success: boolean;
+  data?: AnalyticsPayload | null;
 }
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
-function StatCard({ label, value, color, icon }: { label: string; value: string | number; color: string; icon: React.ReactNode }) {
+function StatCard({
+  label, value, color, icon,
+}: {
+  label: string;
+  value: string | number;
+  color: string;
+  icon: React.ReactNode;
+}) {
   return (
-    <Paper sx={{ p: 2.5, borderRadius: 3, textAlign: "center", border: `1px solid ${alpha(color, 0.2)}`, background: `linear-gradient(135deg, ${alpha(color, 0.07)}, transparent)` }}>
+    <Paper sx={{
+      p: 2.5, borderRadius: 3, textAlign: "center",
+      border: `1px solid ${alpha(color, 0.2)}`,
+      background: `linear-gradient(135deg, ${alpha(color, 0.07)}, transparent)`,
+    }}>
       <Box sx={{ display: "flex", justifyContent: "center", mb: 1, color, opacity: 0.7 }}>{icon}</Box>
       <Typography sx={{ fontSize: "1.8rem", fontFamily: '"DM Serif Display", serif', color, lineHeight: 1, mb: 0.5 }}>
         {value}
@@ -129,6 +115,11 @@ function StatCard({ label, value, color, icon }: { label: string; value: string 
       </Typography>
     </Paper>
   );
+}
+
+// ── Chart skeleton ─────────────────────────────────────────────────────────────
+function ChartSkeleton() {
+  return <Skeleton variant="rectangular" height={240} sx={{ borderRadius: 2 }} />;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -149,27 +140,33 @@ export default function ContactsPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
+
   const handleSearch = useCallback((v: string) => {
     setSearch(v);
     setPage(0);
   }, []);
 
-  // ── Data ──────────────────────────────────────────────────────────────────────
+  // ── Data ──────────────────────────────────────────────────────────────────
   const { data, isLoading, mutate } = useSWR<PaginatedResponse>(
     `/admin/contacts?page=${page + 1}&limit=${rowsPerPage}` +
-      (statusFilter ? `&status=${statusFilter}` : "") +
-      (search ? `&search=${encodeURIComponent(search)}` : ""),
+    (statusFilter ? `&status=${statusFilter}` : "") +
+    (search ? `&search=${encodeURIComponent(search)}` : ""),
   );
 
-  const { data: analyticsData } = useSWR<AnalyticsData>(
-    tab === 1 ? "/admin/contacts/analytics" : null,
-  );
+  const { data: analyticsRes, isLoading: analyticsLoading } =
+    useSWR<AnalyticsResponse>(tab === 1 ? "/admin/contacts/analytics" : null);
 
-  // null-safe: API returns null when no records
   const contacts: Contact[] = data?.data ?? [];
   const total: number = data?.pagination?.total ?? 0;
 
-  // ── Actions ───────────────────────────────────────────────────────────────────
+  // Safe analytics — every field guarded
+  const analytics: AnalyticsPayload = analyticsRes?.data ?? {};
+  const analyticsStatus: Array<{ status: string; count: number }> =
+    Array.isArray(analytics.by_status) ? analytics.by_status : [];
+  const analyticsMonthly: Array<{ month: string; count: number }> =
+    Array.isArray(analytics.monthly) ? analytics.monthly : [];
+
+  // ── Actions ───────────────────────────────────────────────────────────────
   const handleStatusChange = async (id: number, status: ContactStatus) => {
     setStatusLoading(true);
     try {
@@ -211,7 +208,7 @@ export default function ContactsPage() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (deleteId === null) return;
     setDeleteLoading(true);
     try {
       await api.delete(`/admin/contacts/${deleteId}`);
@@ -226,21 +223,25 @@ export default function ContactsPage() {
     }
   };
 
-  // ── Columns ───────────────────────────────────────────────────────────────────
+  // ── Columns ───────────────────────────────────────────────────────────────
   const columns: Column<Contact>[] = [
     {
       key: "name",
       label: "Contact",
       render: (row) => (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Avatar sx={{ width: 32, height: 32, fontSize: "0.78rem", fontWeight: 700, background: `linear-gradient(135deg, ${alpha(GOLD, 0.3)}, ${alpha(GOLD, 0.1)})`, color: GOLD, border: `1px solid ${alpha(GOLD, 0.2)}` }}>
+          <Avatar sx={{
+            width: 32, height: 32, fontSize: "0.78rem", fontWeight: 700, flexShrink: 0,
+            background: `linear-gradient(135deg, ${alpha(GOLD, 0.3)}, ${alpha(GOLD, 0.1)})`,
+            color: GOLD, border: `1px solid ${alpha(GOLD, 0.2)}`,
+          }}>
             {row.name?.charAt(0)?.toUpperCase()}
           </Avatar>
-          <Box>
-            <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, lineHeight: 1.3 }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: "0.875rem", fontWeight: 500, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {row.name}
             </Typography>
-            <Typography sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+            <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {row.email}
             </Typography>
           </Box>
@@ -262,11 +263,11 @@ export default function ContactsPage() {
       render: (row) => <StatusChip status={row.status} />,
     },
     {
-      key: "created_at",            // ← was createdAt
+      key: "created_at",
       label: "Received",
       render: (row) => (
         <Box>
-          <Typography sx={{ fontSize: "0.82rem", color: "text.secondary" }}>
+          <Typography sx={{ fontSize: "0.82rem", color: "text.secondary", whiteSpace: "nowrap" }}>
             {dayjs(row.created_at).format("MMM D, YYYY")}
           </Typography>
           <Typography sx={{ fontSize: "0.72rem", color: "text.disabled" }}>
@@ -303,18 +304,25 @@ export default function ContactsPage() {
     },
   ];
 
-  // ── Analytics helpers ─────────────────────────────────────────────────────────
-  const analyticsStatus = analyticsData?.data?.by_status ?? [];   // ← was byStatus
-  const analyticsMonthly = analyticsData?.data?.monthly ?? [];
+  const chartTooltipStyle = {
+    background: "#1A2535",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 10,
+    fontSize: 12,
+  };
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <PageWrapper
       title="Contact Management"
       subtitle={isLoading ? "Loading…" : `${total.toLocaleString()} submission${total !== 1 ? "s" : ""}`}
     >
       <Paper sx={{ borderRadius: 3, mb: 3 }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 2, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          sx={{ px: 2, borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+        >
           <Tab label="All Contacts" />
           <Tab label="Analytics" />
         </Tabs>
@@ -324,10 +332,7 @@ export default function ContactsPage() {
       {tab === 0 && (
         <>
           <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
-            <SearchBar
-              placeholder="Search by name or email…"
-              onSearch={handleSearch}
-            />
+            <SearchBar placeholder="Search by name or email…" onSearch={handleSearch} />
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <InputLabel>Filter by Status</InputLabel>
               <Select
@@ -364,59 +369,94 @@ export default function ContactsPage() {
         <Grid container spacing={2.5}>
           {/* Stat cards */}
           {[
-            { label: "Total Received",    value: analyticsData?.data?.total ?? "—",                color: GOLD,       icon: <InboxRounded /> },
-            { label: "Pending (New)",     value: analyticsData?.data?.pending ?? "—",              color: "#E8A838",  icon: <HourglassEmptyRounded /> },
-            { label: "Resolved",          value: analyticsData?.data?.resolved ?? "—",             color: "#4CAF82",  icon: <CheckCircleOutlineRounded /> },
-            { label: "Avg. Response Time",value: analyticsData?.data?.avg_response_time ?? "—",   color: "#4A8FD4",  icon: <MailOutlineRounded /> },
+            { label: "Total Received",     value: analytics.total ?? "—",              color: GOLD,      icon: <InboxRounded /> },
+            { label: "Pending (New)",       value: analytics.pending ?? "—",            color: "#E8A838", icon: <HourglassEmptyRounded /> },
+            { label: "Resolved",            value: analytics.resolved ?? "—",           color: "#4CAF82", icon: <CheckCircleOutlineRounded /> },
+            { label: "Avg. Response Time",  value: analytics.avg_response_time ?? "—",  color: "#4A8FD4", icon: <MailOutlineRounded /> },
           ].map((s, i) => (
             <Grid size={{ xs: 6, md: 3 }} key={s.label}>
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-                <StatCard {...s} />
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+              >
+                {analyticsLoading
+                  ? <Skeleton variant="rounded" height={100} sx={{ borderRadius: 3 }} />
+                  : <StatCard {...s} />}
               </motion.div>
             </Grid>
           ))}
 
-          {/* By status chart */}
+          {/* Contacts by status */}
           <Grid size={{ xs: 12, md: 6 }}>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography variant="h6" sx={{ mb: 0.5, fontSize: "1rem" }}>Contacts by Status</Typography>
                 <Typography sx={{ color: "text.secondary", fontSize: "0.8rem", mb: 3 }}>Current breakdown</Typography>
-                {analyticsData ? (
+                {analyticsLoading ? (
+                  <ChartSkeleton />
+                ) : analyticsStatus.length === 0 ? (
+                  <Box sx={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Typography sx={{ color: "text.disabled", fontSize: "0.85rem" }}>No data available</Typography>
+                  </Box>
+                ) : (
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={analyticsStatus}>
                       <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="4 4" />
-                      <XAxis dataKey="status" tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => v.replace("_", " ")} />
-                      <YAxis tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <RTooltip contentStyle={{ background: "#1A2535", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 12 }} />
+                      <XAxis
+                        dataKey="status"
+                        tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v: string) => v.replace("_", " ")}
+                      />
+                      <YAxis
+                        tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        allowDecimals={false}
+                      />
+                      <RTooltip contentStyle={chartTooltipStyle} />
                       <Bar dataKey="count" fill={GOLD} radius={[4, 4, 0, 0]} maxBarSize={52} />
                     </BarChart>
                   </ResponsiveContainer>
-                ) : (
-                  <Skeleton variant="rectangular" height={240} sx={{ borderRadius: 2 }} />
                 )}
               </Paper>
             </motion.div>
           </Grid>
 
-          {/* Monthly trend chart */}
+          {/* Monthly volume */}
           <Grid size={{ xs: 12, md: 6 }}>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.18 }}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography variant="h6" sx={{ mb: 0.5, fontSize: "1rem" }}>Monthly Volume</Typography>
                 <Typography sx={{ color: "text.secondary", fontSize: "0.8rem", mb: 3 }}>Submissions over time</Typography>
-                {analyticsData ? (
+                {analyticsLoading ? (
+                  <ChartSkeleton />
+                ) : analyticsMonthly.length === 0 ? (
+                  <Box sx={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Typography sx={{ color: "text.disabled", fontSize: "0.85rem" }}>No data available</Typography>
+                  </Box>
+                ) : (
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={analyticsMonthly}>
                       <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="4 4" />
-                      <XAxis dataKey="month" tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <RTooltip contentStyle={{ background: "#1A2535", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 12 }} />
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        allowDecimals={false}
+                      />
+                      <RTooltip contentStyle={chartTooltipStyle} />
                       <Bar dataKey="count" fill="#4A8FD4" radius={[4, 4, 0, 0]} maxBarSize={52} />
                     </BarChart>
                   </ResponsiveContainer>
-                ) : (
-                  <Skeleton variant="rectangular" height={240} sx={{ borderRadius: 2 }} />
                 )}
               </Paper>
             </motion.div>
@@ -425,11 +465,21 @@ export default function ContactsPage() {
       )}
 
       {/* ── Contact Detail Dialog ── */}
-      <Dialog open={!!selectedContact} onClose={() => setSelectedContact(null)} maxWidth="md" fullWidth PaperProps={{ sx: { maxHeight: "85vh" } }}>
+      <Dialog
+        open={!!selectedContact}
+        onClose={() => setSelectedContact(null)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { maxHeight: "85vh", borderRadius: 3 } }}
+      >
         <DialogTitle sx={{ pb: 1 }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              <Avatar sx={{ width: 36, height: 36, fontSize: "0.85rem", fontWeight: 700, background: `linear-gradient(135deg, ${alpha(GOLD, 0.3)}, ${alpha(GOLD, 0.1)})`, color: GOLD }}>
+              <Avatar sx={{
+                width: 36, height: 36, fontSize: "0.85rem", fontWeight: 700,
+                background: `linear-gradient(135deg, ${alpha(GOLD, 0.3)}, ${alpha(GOLD, 0.1)})`,
+                color: GOLD,
+              }}>
                 {selectedContact?.name?.charAt(0)?.toUpperCase()}
               </Avatar>
               <Box>
@@ -478,7 +528,7 @@ export default function ContactsPage() {
 
               <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
 
-              {/* Status chips */}
+              {/* Status update */}
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
                 <Typography sx={{ fontSize: "0.8rem", color: "text.secondary", mr: 0.5 }}>Update status:</Typography>
                 {STATUS_OPTIONS.map((s) => (
@@ -527,20 +577,38 @@ export default function ContactsPage() {
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button onClick={() => setDeleteId(selectedContact?.id ?? null)} variant="outlined" size="small" color="error" sx={{ borderRadius: 2, mr: "auto" }}>
+          <Button
+            onClick={() => setDeleteId(selectedContact?.id ?? null)}
+            variant="outlined"
+            size="small"
+            color="error"
+            sx={{ borderRadius: 2, mr: "auto" }}
+          >
             Delete
           </Button>
           <Button onClick={() => setSelectedContact(null)} variant="outlined" size="small" sx={{ borderRadius: 2 }}>
             Close
           </Button>
-          <Button variant="contained" size="small" startIcon={<ReplyRounded sx={{ fontSize: 16 }} />} onClick={() => setReplyOpen(true)} sx={{ borderRadius: 2 }}>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<ReplyRounded sx={{ fontSize: 16 }} />}
+            onClick={() => setReplyOpen(true)}
+            sx={{ borderRadius: 2 }}
+          >
             Reply
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* ── Reply Dialog ── */}
-      <Dialog open={replyOpen} onClose={() => !replyLoading && setReplyOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={replyOpen}
+        onClose={() => !replyLoading && setReplyOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
         <DialogTitle>
           Reply to {selectedContact?.name}
           <Typography sx={{ fontSize: "0.78rem", color: "text.secondary", mt: 0.25 }}>
@@ -561,10 +629,23 @@ export default function ContactsPage() {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button onClick={() => { setReplyOpen(false); setReplyMessage(""); }} variant="outlined" size="small" sx={{ borderRadius: 2 }} disabled={replyLoading}>
+          <Button
+            onClick={() => { setReplyOpen(false); setReplyMessage(""); }}
+            variant="outlined"
+            size="small"
+            sx={{ borderRadius: 2 }}
+            disabled={replyLoading}
+          >
             Cancel
           </Button>
-          <Button onClick={handleReply} variant="contained" size="small" disabled={replyLoading || !replyMessage.trim()} startIcon={<ReplyRounded sx={{ fontSize: 16 }} />} sx={{ borderRadius: 2 }}>
+          <Button
+            onClick={handleReply}
+            variant="contained"
+            size="small"
+            disabled={replyLoading || !replyMessage.trim()}
+            startIcon={<ReplyRounded sx={{ fontSize: 16 }} />}
+            sx={{ borderRadius: 2 }}
+          >
             {replyLoading ? "Sending…" : "Send Reply"}
           </Button>
         </DialogActions>
@@ -572,7 +653,7 @@ export default function ContactsPage() {
 
       {/* ── Delete confirm ── */}
       <ConfirmDialog
-        open={!!deleteId}
+        open={deleteId !== null}
         title="Delete Contact"
         message="This will permanently delete the contact submission and all its replies. This action cannot be undone."
         confirmLabel="Delete"
