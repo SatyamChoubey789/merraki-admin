@@ -385,7 +385,7 @@ function ApprovalDialog({ order, open, onClose, onApproved }: {
               <Paper sx={{ borderRadius: 2, overflow: "hidden", mb: 2.5, border: "1px solid rgba(255,255,255,0.1)" }}>
                 <Box sx={{ p: 1.75, background: alpha(GOLD, 0.08), borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                   {[
-                    `FROM: info@merrakisolutions.com`,
+                    `FROM: noreply@merraki.com`,
                     `TO: ${order.customer_email}`,
                     `SUBJECT: ✅ Order ${order.order_number} Confirmed — Your downloads are ready`,
                   ].map((line) => (
@@ -451,6 +451,7 @@ export default function OrdersPage() {
   const [rejectLoading, setRejectLoading] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const handleSearch = useCallback((v: string) => { setSearch(v); setPage(0); }, []);
 
@@ -622,7 +623,19 @@ export default function OrdersPage() {
       render: (row) => (
         <Box sx={{ display: "flex", gap: 0.5, justifyContent: "flex-end" }}>
           <Tooltip title="View details">
-            <IconButton size="small" onClick={() => setSelectedOrder(row)}><VisibilityRounded sx={{ fontSize: 15 }} /></IconButton>
+            <IconButton size="small" onClick={async () => {
+              setDetailLoading(true);
+              try {
+                const res = await api.get<OrderDetailResponse>(`/admin/orders/${row.id}`);
+                setSelectedOrder(res.data.order);
+              } catch {
+                setSelectedOrder(row); // fallback to list data
+              } finally {
+                setDetailLoading(false);
+              }
+            }}>
+              {detailLoading ? <CircularProgress size={13} /> : <VisibilityRounded sx={{ fontSize: 15 }} />}
+            </IconButton>
           </Tooltip>
           {(row.status === "admin_review" || row.status === "paid") && (
             <>
@@ -841,7 +854,21 @@ export default function OrdersPage() {
                 Reject
               </Button>
               <Button variant="contained" size="small" startIcon={<CheckRounded />}
-                onClick={() => { setApprovalOrder(selectedOrder); setSelectedOrder(null); }}
+                onClick={async () => {
+                  if (!selectedOrder) return;
+                  // Ensure we have items before opening approval dialog
+                  if (!selectedOrder.items) {
+                    try {
+                      const res = await api.get<OrderDetailResponse>(`/admin/orders/${selectedOrder.id}`);
+                      setApprovalOrder(res.data.order);
+                    } catch {
+                      setApprovalOrder(selectedOrder);
+                    }
+                  } else {
+                    setApprovalOrder(selectedOrder);
+                  }
+                  setSelectedOrder(null);
+                }}
                 sx={{ background: "linear-gradient(135deg, #4CAF82, #357A5E)" }}>
                 Approve
               </Button>
