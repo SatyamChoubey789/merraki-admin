@@ -10,15 +10,15 @@ import {
   Tab,
   Tooltip,
 } from "@mui/material";
-import { Grid } from "@mui/material";
+import Grid from "@mui/material/Grid";
 import {
-  PeopleRounded,
   ShoppingCartRounded,
   AttachMoneyRounded,
   HourglassEmptyRounded,
   ArticleRounded,
   LayersRounded,
   FiberManualRecordRounded,
+  PeopleRounded,
 } from "@mui/icons-material";
 import useSWR from "swr";
 import { motion } from "framer-motion";
@@ -34,20 +34,85 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
+  Cell,
   Bar,
   ComposedChart,
   Line,
 } from "recharts";
 import PageWrapper from "@/components/layout/PageWrapper";
 import StatCard from "@/components/ui/StatCard";
-import { DashboardStats, ActivityLog } from "@/types";
 
 dayjs.extend(relativeTime);
 
 const GOLD = "#C9A84C";
-const PIE_COLORS = [GOLD, "#4CAF82", "#E05C5C", "#4A8FD4", "#E8A838"];
+const PIE_COLORS = [
+  GOLD,
+  "#4CAF82",
+  "#E05C5C",
+  "#4A8FD4",
+  "#E8A838",
+  "#9B59B6",
+];
 
-// ─── Revenue heatmap cell ─────────────────────────────────────────────────────
+// ── Backend response shapes ───────────────────────────────────────────────────
+// response.SuccessData wraps as: { success: true, data: <payload> }
+
+interface StatsPayload {
+  totalOrders: number;
+  pendingOrders: number;
+  totalRevenue: number;
+  revenueGrowth: number;
+  completedToday: number;
+  totalBlogPosts: number;
+  publishedBlogPosts: number;
+  totalTemplates: number;
+  activeTemplates: number;
+  totalUsers: number;
+  activeUsers: number;
+  userGrowth: number;
+  newsletter: { total: number; active: number };
+  contacts: { total: number; new: number };
+  ordersByStatus: Array<{ status: string; count: number }>;
+  monthlyRevenue: Array<{ month: string; revenue: number; orders: number }>;
+  dailyRevenue: Array<{ date: string; value: number }>;
+  conversionFunnel: {
+    visitors: number;
+    signups: number;
+    testCompleted: number;
+    purchased: number;
+  };
+  sparklines: {
+    users?: number[];
+    orders?: number[];
+    revenue?: number[];
+    pending?: number[];
+    posts?: number[];
+    templates?: number[];
+  };
+}
+
+interface ActivityLog {
+  id: string;
+  adminName: string;
+  action: string;
+  resource: string;
+  ip?: string;
+  timestamp: string;
+}
+
+interface StatsResponse {
+  success: boolean;
+  data: StatsPayload;
+}
+
+interface ActivityResponse {
+  success: boolean;
+  data: {
+    activities: ActivityLog[];
+  };
+}
+
+// ── Revenue heatmap cell ──────────────────────────────────────────────────────
 function HeatCell({
   value,
   max,
@@ -90,7 +155,7 @@ function HeatCell({
   );
 }
 
-// ─── Conversion funnel bar ────────────────────────────────────────────────────
+// ── Funnel bar ────────────────────────────────────────────────────────────────
 function FunnelBar({
   label,
   value,
@@ -136,7 +201,9 @@ function FunnelBar({
       >
         <motion.div
           initial={{ width: 0 }}
-          animate={{ width: `${Math.min((value / max) * 100, 100)}%` }}
+          animate={{
+            width: `${Math.min((value / Math.max(max, 1)) * 100, 100)}%`,
+          }}
           transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
           style={{
             height: "100%",
@@ -149,67 +216,68 @@ function FunnelBar({
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+const CHART_TOOLTIP_STYLE = {
+  background: "#1A2535",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 10,
+  fontSize: 12,
+};
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [chartTab, setChartTab] = useState(0);
 
-  // Poll dashboard data every 60s
-  const { data: statsRes, isLoading: statsLoading } = useSWR(
+  const { data: statsRes, isLoading: statsLoading } = useSWR<StatsResponse>(
     "/admin/dashboard/stats",
     { refreshInterval: 60_000 },
   );
-  const { data: activityRes, isLoading: activityLoading } = useSWR(
-    "/admin/dashboard/activity",
-    { refreshInterval: 30_000 },
-  );
 
-  const stats = statsRes?.data as DashboardStats | undefined;
-  const activity = activityRes?.data?.activities as ActivityLog[] | undefined;
+  const { data: activityRes, isLoading: activityLoading } =
+    useSWR<ActivityResponse>("/admin/dashboard/activity", {
+      refreshInterval: 30_000,
+    });
 
-  // Generate heatmap data (last 12 weeks = 84 days)
-  const heatData: { date: string; value: number }[] =
-    stats?.dailyRevenue ??
-    Array.from({ length: 84 }, (_, i) => ({
-      date: dayjs()
-        .subtract(83 - i, "day")
-        .format("YYYY-MM-DD"),
-      value: 0,
-    }));
+  // Backend wraps with response.SuccessData → { success, data: <payload> }
+  const stats: StatsPayload | undefined = statsRes?.data;
+  const activity: ActivityLog[] = activityRes?.data?.activities ?? [];
+
+  // Heatmap — last 84 days
+  const heatData =
+    Array.isArray(stats?.dailyRevenue) && stats!.dailyRevenue.length > 0
+      ? stats!.dailyRevenue
+      : Array.from({ length: 84 }, (_, i) => ({
+          date: dayjs()
+            .subtract(83 - i, "day")
+            .format("YYYY-MM-DD"),
+          value: 0,
+        }));
   const heatMax = Math.max(...heatData.map((d) => d.value), 1);
 
-  // Funnel data
   const funnel = stats?.conversionFunnel ?? {
     visitors: 0,
     signups: 0,
     testCompleted: 0,
     purchased: 0,
   };
-
-  // Sparklines per stat (last 7 days)
   const sparklines = stats?.sparklines ?? {};
+  const ordersByStatus = Array.isArray(stats?.ordersByStatus)
+    ? stats!.ordersByStatus
+    : [];
+  const monthlyRevenue = Array.isArray(stats?.monthlyRevenue)
+    ? stats!.monthlyRevenue
+    : [];
 
   return (
-    <PageWrapper title="Dashboard" subtitle="Platform overview live data">
-      {/* ── KPI Cards ── */}
+    <PageWrapper title="Dashboard" subtitle="Platform overview · live data">
+      {/* ── KPI cards ── */}
       <Grid container spacing={2.5} sx={{ mb: 3 }}>
         {[
-          {
-            title: "Total Users",
-            value: stats?.totalUsers ?? 0,
-            icon: <PeopleRounded />,
-            color: GOLD,
-            trend: stats?.userGrowth,
-            delay: 0,
-            sparkline: sparklines.users,
-            subtitle: `${stats?.activeUsers ?? 0} active today`,
-          },
           {
             title: "Total Orders",
             value: stats?.totalOrders ?? 0,
             icon: <ShoppingCartRounded />,
             color: "#4A8FD4",
-            trend: 8,
-            delay: 0.07,
+            delay: 0,
             sparkline: sparklines.orders,
             subtitle: `${stats?.pendingOrders ?? 0} pending approval`,
           },
@@ -219,19 +287,27 @@ export default function DashboardPage() {
             icon: <AttachMoneyRounded />,
             color: "#4CAF82",
             trend: stats?.revenueGrowth,
-            delay: 0.14,
+            delay: 0.07,
             sparkline: sparklines.revenue,
             prefix: "₹",
-            animate: true,
           },
           {
             title: "Pending Orders",
             value: stats?.pendingOrders ?? 0,
             icon: <HourglassEmptyRounded />,
             color: "#E8A838",
-            trend: -3,
-            delay: 0.21,
+            delay: 0.14,
             sparkline: sparklines.pending,
+          },
+          {
+            title: "Admins",
+            value: stats?.totalUsers ?? 0,
+            icon: <PeopleRounded />,
+            color: GOLD,
+            trend: stats?.userGrowth,
+            delay: 0.21,
+            sparkline: sparklines.users,
+            subtitle: `${stats?.activeUsers ?? 0} active`,
           },
           {
             title: "Blog Posts",
@@ -240,6 +316,7 @@ export default function DashboardPage() {
             color: "#6B8CAE",
             delay: 0.28,
             sparkline: sparklines.posts,
+            subtitle: `${stats?.publishedBlogPosts ?? 0} published`,
           },
           {
             title: "Templates",
@@ -248,6 +325,7 @@ export default function DashboardPage() {
             color: "#C97E4C",
             delay: 0.35,
             sparkline: sparklines.templates,
+            subtitle: `${stats?.activeTemplates ?? 0} active`,
           },
         ].map((s) => (
           <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={s.title}>
@@ -289,7 +367,7 @@ export default function DashboardPage() {
                     <Typography
                       sx={{ color: "text.secondary", fontSize: "0.8rem" }}
                     >
-                      Monthly performance with order volume overlay
+                      Monthly performance with order volume
                     </Typography>
                   </Box>
                   <Tabs
@@ -311,103 +389,128 @@ export default function DashboardPage() {
                   </Tabs>
                 </Box>
               </Box>
-
               <Box sx={{ px: 1, pb: 2 }}>
-                <ResponsiveContainer width="100%" height={260}>
-                  <ComposedChart data={stats?.monthlyRevenue ?? []}>
-                    <defs>
-                      <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={GOLD} stopOpacity={0.3} />
-                        <stop offset="100%" stopColor={GOLD} stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="ordGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="0%"
-                          stopColor="#4A8FD4"
-                          stopOpacity={0.25}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor="#4A8FD4"
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      stroke="rgba(255,255,255,0.04)"
-                      strokeDasharray="4 4"
-                    />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      yAxisId="rev"
-                      tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => `₹${v / 1000}K`}
-                    />
-                    {(chartTab === 1 || chartTab === 2) && (
-                      <YAxis
-                        yAxisId="ord"
-                        orientation="right"
+                {statsLoading ? (
+                  <Skeleton
+                    variant="rectangular"
+                    height={260}
+                    sx={{ borderRadius: 2, mx: 1 }}
+                  />
+                ) : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <ComposedChart data={monthlyRevenue}>
+                      <defs>
+                        <linearGradient
+                          id="revGrad"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor={GOLD}
+                            stopOpacity={0.3}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor={GOLD}
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                        <linearGradient
+                          id="ordGrad"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="#4A8FD4"
+                            stopOpacity={0.25}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="#4A8FD4"
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        stroke="rgba(255,255,255,0.04)"
+                        strokeDasharray="4 4"
+                      />
+                      <XAxis
+                        dataKey="month"
                         tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
                         axisLine={false}
                         tickLine={false}
                       />
-                    )}
-                    <RTooltip
-                      contentStyle={{
-                        background: "#1A2535",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: 10,
-                        fontSize: 12,
-                      }}
-                      formatter={(value?: number, name?: string) => {
-                        return [value?.toLocaleString() ?? "", name ?? ""];
-                      }}
-                    />
-                    {(chartTab === 0 || chartTab === 2) && (
-                      <Area
+                      <YAxis
                         yAxisId="rev"
-                        type="monotone"
-                        dataKey="revenue"
-                        stroke={GOLD}
-                        strokeWidth={2}
-                        fill="url(#revGrad)"
-                        dot={{ fill: GOLD, r: 3 }}
-                        activeDot={{ r: 5, fill: GOLD }}
+                        tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v: number) =>
+                          `₹${v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v}`
+                        }
                       />
-                    )}
-                    {(chartTab === 1 || chartTab === 2) && (
-                      <Bar
-                        yAxisId="ord"
-                        dataKey="orders"
-                        fill={alpha("#4A8FD4", 0.5)}
-                        radius={[2, 2, 0, 0]}
+                      {(chartTab === 1 || chartTab === 2) && (
+                        <YAxis
+                          yAxisId="ord"
+                          orientation="right"
+                          tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                      )}
+                      <RTooltip
+                        contentStyle={CHART_TOOLTIP_STYLE}
+                        formatter={(
+                          value: number | undefined,
+                          name: string | undefined,
+                        ) => [value?.toLocaleString() ?? "", name ?? ""]}
                       />
-                    )}
-                    {chartTab === 2 && (
-                      <Line
-                        yAxisId="ord"
-                        type="monotone"
-                        dataKey="orders"
-                        stroke="#4A8FD4"
-                        strokeWidth={1.5}
-                        dot={false}
-                      />
-                    )}
-                  </ComposedChart>
-                </ResponsiveContainer>
+                      {(chartTab === 0 || chartTab === 2) && (
+                        <Area
+                          yAxisId="rev"
+                          type="monotone"
+                          dataKey="revenue"
+                          stroke={GOLD}
+                          strokeWidth={2}
+                          fill="url(#revGrad)"
+                          dot={{ fill: GOLD, r: 3 }}
+                          activeDot={{ r: 5, fill: GOLD }}
+                        />
+                      )}
+                      {(chartTab === 1 || chartTab === 2) && (
+                        <Bar
+                          yAxisId="ord"
+                          dataKey="orders"
+                          fill={alpha("#4A8FD4", 0.5)}
+                          radius={[2, 2, 0, 0]}
+                        />
+                      )}
+                      {chartTab === 2 && (
+                        <Line
+                          yAxisId="ord"
+                          type="monotone"
+                          dataKey="orders"
+                          stroke="#4A8FD4"
+                          strokeWidth={1.5}
+                          dot={false}
+                        />
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
               </Box>
             </Paper>
           </motion.div>
         </Grid>
 
-        {/* ── Orders by status ── */}
+        {/* ── Orders by status pie ── */}
         <Grid size={{ xs: 12, lg: 4 }}>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -432,31 +535,39 @@ export default function DashboardPage() {
               >
                 Current distribution
               </Typography>
-              <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
-                <PieChart width={160} height={160}>
-                  <Pie
-                    data={stats?.ordersByStatus ?? []}
-                    dataKey="count"
-                    nameKey="status"
-                    cx={80}
-                    cy={80}
-                    innerRadius={50}
-                    outerRadius={72}
-                    paddingAngle={3}
-                    label={({ index }) => {
-                      return PIE_COLORS[(index ?? 0) % PIE_COLORS.length];
-                    }}
-                  />
-                  <RTooltip
-                    contentStyle={{
-                      background: "#1A2535",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 10,
-                      fontSize: 12,
-                    }}
-                  />
-                </PieChart>
-              </Box>
+
+              {statsLoading ? (
+                <Skeleton
+                  variant="circular"
+                  width={160}
+                  height={160}
+                  sx={{ mx: "auto", mb: 2 }}
+                />
+              ) : (
+                <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
+                  <PieChart width={160} height={160}>
+                    <Pie
+                      data={ordersByStatus}
+                      dataKey="count"
+                      nameKey="status"
+                      cx={80}
+                      cy={80}
+                      innerRadius={50}
+                      outerRadius={72}
+                      paddingAngle={3}
+                    >
+                      {ordersByStatus.map((_, i) => (
+                        <Cell
+                          key={i}
+                          fill={PIE_COLORS[i % PIE_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <RTooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                  </PieChart>
+                </Box>
+              )}
+
               <Box
                 sx={{
                   display: "flex",
@@ -465,7 +576,7 @@ export default function DashboardPage() {
                   mt: "auto",
                 }}
               >
-                {(stats?.ordersByStatus ?? []).map((s, i) => (
+                {ordersByStatus.map((s, i) => (
                   <Box
                     key={s.status}
                     sx={{
@@ -488,23 +599,35 @@ export default function DashboardPage() {
                           textTransform: "capitalize",
                         }}
                       >
-                        {s.status}
+                        {s.status.replace(/_/g, " ")}
                       </Typography>
                     </Box>
                     <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                       <Typography sx={{ fontSize: "0.8rem", fontWeight: 600 }}>
                         {s.count}
                       </Typography>
-                      {stats?.totalOrders && (
+                      {stats?.totalOrders ? (
                         <Typography
                           sx={{ fontSize: "0.7rem", color: "text.disabled" }}
                         >
                           {Math.round((s.count / stats.totalOrders) * 100)}%
                         </Typography>
-                      )}
+                      ) : null}
                     </Box>
                   </Box>
                 ))}
+                {ordersByStatus.length === 0 && !statsLoading && (
+                  <Typography
+                    sx={{
+                      fontSize: "0.8rem",
+                      color: "text.disabled",
+                      textAlign: "center",
+                      py: 2,
+                    }}
+                  >
+                    No orders yet
+                  </Typography>
+                )}
               </Box>
             </Paper>
           </motion.div>
@@ -527,13 +650,12 @@ export default function DashboardPage() {
                 Daily revenue — last 12 weeks
               </Typography>
 
-              {/* Day labels */}
               <Box
                 sx={{
                   display: "flex",
                   gap: 0.4,
                   mb: 0.5,
-                  pl: { xs: 0, sm: "28px" },
+                  pl: { xs: 0, sm: "4px" },
                 }}
               >
                 {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
@@ -552,7 +674,6 @@ export default function DashboardPage() {
               </Box>
 
               <Box sx={{ display: "flex", gap: 0.4, overflowX: "auto" }}>
-                {/* Week columns */}
                 {Array.from({ length: 12 }, (_, week) => (
                   <Box
                     key={week}
@@ -584,7 +705,6 @@ export default function DashboardPage() {
                 ))}
               </Box>
 
-              {/* Legend */}
               <Box
                 sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 2 }}
               >
@@ -630,12 +750,12 @@ export default function DashboardPage() {
               <Typography
                 sx={{ color: "text.secondary", fontSize: "0.8rem", mb: 3 }}
               >
-                Visitor → Purchase pipeline
+                Subscriber → Purchase pipeline
               </Typography>
 
               {[
                 {
-                  label: "Visitors",
+                  label: "Subscribers",
                   value: funnel.visitors,
                   color: "#6B8CAE",
                   pct: undefined,
@@ -677,7 +797,6 @@ export default function DashboardPage() {
                 />
               ))}
 
-              {/* Overall conversion rate */}
               <Box
                 sx={{
                   mt: 2.5,
@@ -692,7 +811,7 @@ export default function DashboardPage() {
                 <Typography
                   sx={{ fontSize: "0.8rem", color: "text.secondary" }}
                 >
-                  Overall conversion rate
+                  Overall conversion
                 </Typography>
                 <Typography
                   sx={{ fontSize: "0.8rem", fontWeight: 700, color: GOLD }}
@@ -729,7 +848,7 @@ export default function DashboardPage() {
                   <Typography
                     sx={{ color: "text.secondary", fontSize: "0.8rem" }}
                   >
-                    Latest admin actions — auto-refreshes every 30s
+                    Latest admin actions — refreshes every 30s
                   </Typography>
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -751,107 +870,118 @@ export default function DashboardPage() {
                 </Box>
               </Box>
 
-              <Box>
-                {activityLoading
-                  ? Array.from({ length: 5 }).map((_, i) => (
-                      <Box key={i} sx={{ display: "flex", gap: 2, py: 1.5 }}>
-                        <Skeleton variant="circular" width={32} height={32} />
-                        <Box sx={{ flex: 1 }}>
-                          <Skeleton variant="text" width="60%" height={16} />
-                          <Skeleton
-                            variant="text"
-                            width="40%"
-                            height={13}
-                            sx={{ mt: 0.5 }}
-                          />
-                        </Box>
-                      </Box>
-                    ))
-                  : activity?.map((log, i) => (
-                      <motion.div
-                        key={log.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05 }}
+              {activityLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <Box key={i} sx={{ display: "flex", gap: 2, py: 1.5 }}>
+                    <Skeleton variant="circular" width={32} height={32} />
+                    <Box sx={{ flex: 1 }}>
+                      <Skeleton variant="text" width="60%" height={16} />
+                      <Skeleton
+                        variant="text"
+                        width="40%"
+                        height={13}
+                        sx={{ mt: 0.5 }}
+                      />
+                    </Box>
+                  </Box>
+                ))
+              ) : activity.length === 0 ? (
+                <Typography
+                  sx={{
+                    color: "text.disabled",
+                    fontSize: "0.85rem",
+                    textAlign: "center",
+                    py: 4,
+                  }}
+                >
+                  No activity yet
+                </Typography>
+              ) : (
+                activity.map((log, i) => (
+                  <motion.div
+                    key={log.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
+                        py: 1.5,
+                        px: 2,
+                        borderRadius: 2,
+                        transition: "background 0.2s",
+                        "&:hover": { background: alpha("#fff", 0.03) },
+                        borderBottom:
+                          i < activity.length - 1
+                            ? "1px solid rgba(255,255,255,0.04)"
+                            : "none",
+                      }}
+                    >
+                      <Avatar
+                        sx={{
+                          width: 30,
+                          height: 30,
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          flexShrink: 0,
+                          background: `linear-gradient(135deg, ${alpha(GOLD, 0.25)}, ${alpha(GOLD, 0.1)})`,
+                          color: GOLD,
+                        }}
                       >
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 2,
-                            py: 1.5,
-                            px: 2,
-                            borderRadius: 2,
-                            transition: "background 0.2s",
-                            "&:hover": { background: alpha("#fff", 0.03) },
-                            borderBottom:
-                              activity && i < activity.length - 1
-                                ? "1px solid rgba(255,255,255,0.04)"
-                                : "none",
-                          }}
+                        {log.adminName?.charAt(0)?.toUpperCase()}
+                      </Avatar>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          sx={{ fontSize: "0.84rem", lineHeight: 1.4 }}
                         >
-                          <Avatar
-                            sx={{
-                              width: 30,
-                              height: 30,
-                              fontSize: "0.72rem",
-                              fontWeight: 700,
-                              background: `linear-gradient(135deg, ${alpha(GOLD, 0.25)}, ${alpha(GOLD, 0.1)})`,
-                              color: GOLD,
-                              flexShrink: 0,
-                            }}
+                          <Box
+                            component="span"
+                            sx={{ fontWeight: 600, color: "#F0EDE8" }}
                           >
-                            {log.adminName?.charAt(0)}
-                          </Avatar>
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography
-                              sx={{ fontSize: "0.84rem", lineHeight: 1.4 }}
-                            >
-                              <Box
-                                component="span"
-                                sx={{ fontWeight: 600, color: "#F0EDE8" }}
-                              >
-                                {log.adminName}
-                              </Box>{" "}
-                              <Box
-                                component="span"
-                                sx={{ color: "text.secondary" }}
-                              >
-                                {log.action}
-                              </Box>{" "}
-                              <Box
-                                component="span"
-                                sx={{ fontWeight: 500, color: GOLD }}
-                              >
-                                {log.resource}
-                              </Box>
-                            </Typography>
-                            {log.ip && (
-                              <Typography
-                                sx={{
-                                  fontSize: "0.68rem",
-                                  color: "text.disabled",
-                                  mt: 0.2,
-                                }}
-                              >
-                                IP: {log.ip}
-                              </Typography>
-                            )}
+                            {log.adminName}
+                          </Box>{" "}
+                          <Box
+                            component="span"
+                            sx={{ color: "text.secondary" }}
+                          >
+                            {log.action}
+                          </Box>{" "}
+                          <Box
+                            component="span"
+                            sx={{ fontWeight: 500, color: GOLD }}
+                          >
+                            {log.resource}
                           </Box>
+                        </Typography>
+                        {log.ip && (
                           <Typography
                             sx={{
-                              fontSize: "0.72rem",
+                              fontSize: "0.68rem",
                               color: "text.disabled",
-                              whiteSpace: "nowrap",
-                              flexShrink: 0,
+                              mt: 0.2,
                             }}
                           >
-                            {dayjs(log.timestamp).fromNow()}
+                            IP: {log.ip}
                           </Typography>
-                        </Box>
-                      </motion.div>
-                    ))}
-              </Box>
+                        )}
+                      </Box>
+                      <Typography
+                        sx={{
+                          fontSize: "0.72rem",
+                          color: "text.disabled",
+                          whiteSpace: "nowrap",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {dayjs(log.timestamp).fromNow()}
+                      </Typography>
+                    </Box>
+                  </motion.div>
+                ))
+              )}
             </Paper>
           </motion.div>
         </Grid>
