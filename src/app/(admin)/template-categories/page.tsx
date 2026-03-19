@@ -14,7 +14,8 @@ import {
   Paper,
   Chip,
   Skeleton,
-  Divider,
+  Switch,
+  FormControlLabel,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import {
@@ -24,6 +25,7 @@ import {
   DragIndicatorRounded,
   VisibilityRounded,
   VisibilityOffRounded,
+  CategoryRounded,
 } from "@mui/icons-material";
 import useSWR from "swr";
 import { useSnackbar } from "notistack";
@@ -35,46 +37,46 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import SearchBar from "@/components/ui/SearchBar";
 
-// ── Constants ──────────────────────────────────────────────────────────────────
 const GOLD = "#C9A84C";
 
-const PRESET_COLORS = [
-  "#C9A84C", "#4CAF82", "#4A8FD4", "#E05C5C", "#E8A838",
-  "#9B59B6", "#1ABC9C", "#E91E63", "#FF5722", "#00BCD4",
-  "#6B8CAE", "#C97E4C", "#3F51B5", "#009688", "#795548",
-];
-
-const PRESET_ICONS = [
-  "📄", "📊", "💼", "🎨", "📝", "📋", "🖼️", "📈", "💡", "🔧",
-  "📱", "🎯", "🏆", "💰", "📌", "🌐", "✉️", "📦", "⚡", "🔖",
-  "💎", "🎓", "🏢", "🛒", "🎭", "📐", "🖋️", "🗂️", "📸", "🎬",
-];
-
-// ── Types (aligned to actual API response) ────────────────────────────────────
-interface TemplateCategory {
-  id: number;           // API: number, not string
+interface Category {
+  id: number;
   name: string;
   slug: string;
   description?: string;
-  color_hex: string;    // API field name (not `color`)
-  icon_name: string;    // API field name (not `icon`) — text identifier e.g. "briefcase"
-  templates_count: number; // API field name (not `templateCount`)
-  display_order: number;   // API field name (not `sortOrder`)
-  is_active: boolean;      // API field name (not `isActive`)
+  parent_id?: number;
+  display_order: number;
+  is_active: boolean;
+  meta_title?: string;
+  meta_description?: string;
   created_at: string;
   updated_at: string;
+  // Joined — may be included by backend
+  template_count?: number;
 }
 
+// Handler returns: { "categories": Category[] }
 interface ApiResponse {
-  success: boolean;
-  data: TemplateCategory[];
+  categories: Category[] | null;
 }
 
 interface FormValues {
   name: string;
   slug: string;
   description: string;
+  meta_title: string;
+  meta_description: string;
+  is_active: boolean;
 }
+
+const DEFAULT_FORM: FormValues = {
+  name: "",
+  slug: "",
+  description: "",
+  meta_title: "",
+  meta_description: "",
+  is_active: true,
+};
 
 function toSlug(value: string): string {
   return value
@@ -86,111 +88,23 @@ function toSlug(value: string): string {
     .slice(0, 80);
 }
 
-// ── Icon map: icon_name string → emoji ────────────────────────────────────────
-// The API stores icon_name as a text key (e.g. "briefcase"). We map those to
-// emojis for display; when creating/editing we let the admin pick an emoji
-// and store it as icon_name directly (emojis are valid icon_name values).
-const ICON_NAME_TO_EMOJI: Record<string, string> = {
-  briefcase: "💼",
-  calculator: "📊",
-  presentation: "🎯",
-  "file-text": "📄",
-  chart: "📈",
-  money: "💰",
-  legal: "⚖️",
-  globe: "🌐",
-  star: "⭐",
-  box: "📦",
-};
-
-// Reverse map — used when sending icon back to the API
-const EMOJI_TO_ICON_NAME: Record<string, string> = Object.fromEntries(
-  Object.entries(ICON_NAME_TO_EMOJI).map(([k, v]) => [v, k]),
-);
-
-function resolveIcon(icon_name: string): string {
-  // If icon_name is already an emoji (multi-byte char), return as-is
-  if ([...icon_name].length <= 2 && icon_name.charCodeAt(0) > 255) return icon_name;
-  return ICON_NAME_TO_EMOJI[icon_name] ?? "📄";
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
-  return (
-    <Box>
-      <Typography sx={{ fontSize: "0.72rem", color: "text.secondary", mb: 1, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-        Colour
-      </Typography>
-      <Box sx={{ display: "flex", gap: 0.7, flexWrap: "wrap", mb: 1.5 }}>
-        {PRESET_COLORS.map((c) => (
-          <Box
-            key={c}
-            onClick={() => onChange(c)}
-            sx={{
-              width: 28, height: 28, borderRadius: 1.5, cursor: "pointer", background: c,
-              border: value === c ? "2.5px solid #fff" : "2.5px solid transparent",
-              boxShadow: value === c ? `0 0 0 2px ${c}` : `0 2px 6px ${alpha(c, 0.3)}`,
-              transition: "all 0.15s",
-              "&:hover": { transform: "scale(1.2)" },
-            }}
-          />
-        ))}
-      </Box>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <Box sx={{ width: 22, height: 22, borderRadius: 1, background: value, border: "1px solid rgba(255,255,255,0.2)", flexShrink: 0 }} />
-        <TextField
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          size="small"
-          placeholder="#C9A84C"
-          sx={{ width: 130, "& .MuiOutlinedInput-root": { fontSize: "0.8rem" } }}
-        />
-      </Box>
-    </Box>
-  );
-}
-
-function IconPicker({ value, onChange }: { value: string; onChange: (i: string) => void }) {
-  return (
-    <Box>
-      <Typography sx={{ fontSize: "0.72rem", color: "text.secondary", mb: 1, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-        Icon
-      </Typography>
-      <Box sx={{ display: "flex", gap: 0.6, flexWrap: "wrap" }}>
-        {PRESET_ICONS.map((icon) => (
-          <Box
-            key={icon}
-            onClick={() => onChange(icon)}
-            sx={{
-              width: 38, height: 38, borderRadius: 2, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "1.15rem",
-              background: value === icon ? alpha(GOLD, 0.22) : alpha("#fff", 0.04),
-              border: `1.5px solid ${value === icon ? alpha(GOLD, 0.55) : "rgba(255,255,255,0.08)"}`,
-              transition: "all 0.15s",
-              "&:hover": { background: alpha(GOLD, 0.12), transform: "scale(1.1)" },
-            }}
-          >
-            {icon}
-          </Box>
-        ))}
-      </Box>
-    </Box>
-  );
-}
-
+// ── Category row card ─────────────────────────────────────────────────────────
 function CategoryCard({
   cat,
+  allCats,
   onEdit,
   onDelete,
   onToggle,
 }: {
-  cat: TemplateCategory;
-  onEdit: (c: TemplateCategory) => void;
+  cat: Category;
+  allCats: Category[];
+  onEdit: (c: Category) => void;
   onDelete: (id: number) => void;
   onToggle: (id: number, active: boolean) => void;
 }) {
-  const emoji = resolveIcon(cat.icon_name);
+  const parent = cat.parent_id
+    ? allCats.find((c) => c.id === cat.parent_id)
+    : null;
 
   return (
     <Reorder.Item value={cat} id={String(cat.id)} style={{ listStyle: "none" }}>
@@ -199,56 +113,133 @@ function CategoryCard({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: 0.18 }}
       >
         <Paper
           sx={{
-            px: 2.5, py: 2, mb: 1.5, borderRadius: 3,
-            background: cat.is_active ? alpha("#1A2535", 0.85) : alpha("#111827", 0.7),
-            border: `1px solid ${cat.is_active ? alpha(cat.color_hex, 0.22) : "rgba(255,255,255,0.05)"}`,
+            px: 2.5,
+            py: 2,
+            mb: 1.5,
+            borderRadius: 3,
+            background: cat.is_active
+              ? alpha("#1A2535", 0.9)
+              : alpha("#111827", 0.7),
+            border: `1px solid ${cat.is_active ? alpha(GOLD, 0.18) : "rgba(255,255,255,0.05)"}`,
             opacity: cat.is_active ? 1 : 0.6,
-            transition: "all 0.25s",
+            transition: "all 0.2s",
             "&:hover": {
-              border: `1px solid ${alpha(cat.color_hex, 0.4)}`,
-              boxShadow: `0 6px 28px ${alpha(cat.color_hex, 0.12)}`,
+              border: `1px solid ${alpha(GOLD, 0.35)}`,
+              boxShadow: `0 4px 20px ${alpha(GOLD, 0.08)}`,
             },
+            // Indent child categories visually
+            ml: cat.parent_id ? 4 : 0,
           }}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
             {/* Drag handle */}
-            <Box sx={{ cursor: "grab", color: "text.disabled", "&:active": { cursor: "grabbing" }, "&:hover": { color: alpha(cat.color_hex, 0.7) } }}>
+            <Box
+              sx={{
+                cursor: "grab",
+                color: "text.disabled",
+                flexShrink: 0,
+                "&:active": { cursor: "grabbing" },
+                "&:hover": { color: alpha(GOLD, 0.7) },
+              }}
+            >
               <DragIndicatorRounded sx={{ fontSize: 22 }} />
             </Box>
 
-            {/* Icon badge */}
-            <Box sx={{
-              width: 46, height: 46, borderRadius: 2.5, flexShrink: 0,
-              fontSize: "1.45rem",
-              background: `linear-gradient(135deg, ${alpha(cat.color_hex, 0.28)}, ${alpha(cat.color_hex, 0.08)})`,
-              border: `1.5px solid ${alpha(cat.color_hex, 0.35)}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: `0 4px 14px ${alpha(cat.color_hex, 0.18)}`,
-            }}>
-              {emoji}
+            {/* Order badge */}
+            <Box
+              sx={{
+                width: 30,
+                height: 30,
+                borderRadius: 1.5,
+                flexShrink: 0,
+                background: alpha(GOLD, 0.08),
+                border: `1px solid ${alpha(GOLD, 0.18)}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Typography
+                sx={{ fontSize: "0.72rem", fontWeight: 700, color: GOLD }}
+              >
+                {cat.display_order}
+              </Typography>
             </Box>
 
-            {/* Name + slug + description */}
+            {/* Name + meta */}
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 0.4 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: "0.95rem" }}>{cat.name}</Typography>
-                <Box sx={{ width: 8, height: 8, borderRadius: "50%", background: cat.color_hex, boxShadow: `0 0 8px ${alpha(cat.color_hex, 0.8)}` }} />
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  mb: 0.3,
+                  flexWrap: "wrap",
+                }}
+              >
+                <Typography sx={{ fontWeight: 700, fontSize: "0.95rem" }}>
+                  {cat.name}
+                </Typography>
+                {parent && (
+                  <Chip
+                    label={`↳ ${parent.name}`}
+                    size="small"
+                    sx={{
+                      height: 18,
+                      fontSize: "0.62rem",
+                      background: alpha("#4A8FD4", 0.1),
+                      color: "#4A8FD4",
+                    }}
+                  />
+                )}
                 {!cat.is_active && (
-                  <Chip label="Hidden" size="small" sx={{ height: 18, fontSize: "0.6rem", background: alpha("#888", 0.1), color: "#888" }} />
+                  <Chip
+                    label="Hidden"
+                    size="small"
+                    sx={{
+                      height: 18,
+                      fontSize: "0.6rem",
+                      background: alpha("#888", 0.1),
+                      color: "#888",
+                    }}
+                  />
                 )}
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Typography sx={{ fontSize: "0.73rem", color: "text.disabled", fontFamily: "monospace" }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.72rem",
+                    color: "text.disabled",
+                    fontFamily: "monospace",
+                  }}
+                >
                   /{cat.slug}
                 </Typography>
                 {cat.description && (
                   <>
-                    <Box sx={{ width: 3, height: 3, borderRadius: "50%", background: "rgba(255,255,255,0.2)", flexShrink: 0 }} />
-                    <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>
+                    <Box
+                      sx={{
+                        width: 3,
+                        height: 3,
+                        borderRadius: "50%",
+                        background: "rgba(255,255,255,0.2)",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Typography
+                      sx={{
+                        fontSize: "0.74rem",
+                        color: "text.secondary",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: { xs: 140, sm: 260 },
+                      }}
+                    >
                       {cat.description}
                     </Typography>
                   </>
@@ -256,59 +247,92 @@ function CategoryCard({
               </Box>
             </Box>
 
-            {/* Template count badge */}
-            <Box sx={{
-              px: 1.5, py: 0.5, borderRadius: 2, flexShrink: 0,
-              background: alpha(cat.color_hex, 0.1),
-              border: `1px solid ${alpha(cat.color_hex, 0.22)}`,
-              textAlign: "center",
-            }}>
-              <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, color: cat.color_hex }}>
-                {cat.templates_count ?? 0}
-              </Typography>
-              <Typography sx={{ fontSize: "0.58rem", color: alpha(cat.color_hex, 0.6) }}>
-                templates
-              </Typography>
-            </Box>
-
-            {/* Sort order badge */}
-            <Box sx={{
-              width: 32, height: 32, borderRadius: 1.5, flexShrink: 0,
-              background: alpha("#fff", 0.04), border: "1px solid rgba(255,255,255,0.08)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "text.disabled" }}>
-                {cat.display_order}
-              </Typography>
-            </Box>
+            {/* Template count — shown if backend provides it */}
+            {cat.template_count !== undefined && (
+              <Box
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 2,
+                  flexShrink: 0,
+                  background: alpha(GOLD, 0.08),
+                  border: `1px solid ${alpha(GOLD, 0.18)}`,
+                  textAlign: "center",
+                }}
+              >
+                <Typography
+                  sx={{ fontSize: "0.82rem", fontWeight: 700, color: GOLD }}
+                >
+                  {cat.template_count}
+                </Typography>
+                <Typography
+                  sx={{ fontSize: "0.58rem", color: alpha(GOLD, 0.6) }}
+                >
+                  templates
+                </Typography>
+              </Box>
+            )}
 
             {/* Actions */}
             <Box sx={{ display: "flex", gap: 0.4, flexShrink: 0 }}>
-              <Tooltip title={cat.is_active ? "Hide from storefront" : "Show on storefront"}>
+              <Tooltip
+                title={
+                  cat.is_active ? "Hide from storefront" : "Show on storefront"
+                }
+              >
                 <IconButton
                   size="small"
                   onClick={() => onToggle(cat.id, !cat.is_active)}
-                  sx={{ width: 30, height: 30, color: cat.is_active ? "#4CAF82" : "text.disabled", "&:hover": { background: alpha("#4CAF82", 0.1), color: "#4CAF82" } }}
+                  sx={{
+                    width: 30,
+                    height: 30,
+                    color: cat.is_active ? "#4CAF82" : "text.disabled",
+                    "&:hover": {
+                      background: alpha("#4CAF82", 0.1),
+                      color: "#4CAF82",
+                    },
+                  }}
                 >
-                  {cat.is_active ? <VisibilityRounded sx={{ fontSize: 15 }} /> : <VisibilityOffRounded sx={{ fontSize: 15 }} />}
+                  {cat.is_active ? (
+                    <VisibilityRounded sx={{ fontSize: 15 }} />
+                  ) : (
+                    <VisibilityOffRounded sx={{ fontSize: 15 }} />
+                  )}
                 </IconButton>
               </Tooltip>
               <Tooltip title="Edit">
                 <IconButton
                   size="small"
                   onClick={() => onEdit(cat)}
-                  sx={{ width: 30, height: 30, "&:hover": { color: GOLD, background: alpha(GOLD, 0.08) } }}
+                  sx={{
+                    width: 30,
+                    height: 30,
+                    "&:hover": { color: GOLD, background: alpha(GOLD, 0.08) },
+                  }}
                 >
                   <EditRounded sx={{ fontSize: 15 }} />
                 </IconButton>
               </Tooltip>
-              <Tooltip title={cat.templates_count ? `${cat.templates_count} templates — reassign first` : "Delete"}>
+              <Tooltip
+                title={
+                  cat.template_count
+                    ? `${cat.template_count} templates — reassign first`
+                    : "Delete"
+                }
+              >
                 <span>
                   <IconButton
                     size="small"
-                    onClick={() => !cat.templates_count && onDelete(cat.id)}
-                    disabled={!!cat.templates_count}
-                    sx={{ width: 30, height: 30, "&:hover": { color: "#E05C5C", background: alpha("#E05C5C", 0.08) } }}
+                    disabled={!!cat.template_count}
+                    onClick={() => !cat.template_count && onDelete(cat.id)}
+                    sx={{
+                      width: 30,
+                      height: 30,
+                      "&:hover": {
+                        color: "#E05C5C",
+                        background: alpha("#E05C5C", 0.08),
+                      },
+                    }}
                   >
                     <DeleteRounded sx={{ fontSize: 15 }} />
                   </IconButton>
@@ -325,29 +349,28 @@ function CategoryCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function TemplateCategoriesPage() {
   const { enqueueSnackbar } = useSnackbar();
+
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
-  const [editCat, setEditCat] = useState<TemplateCategory | null>(null);
+  const [editCat, setEditCat] = useState<Category | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
-  const [selectedColor, setSelectedColor] = useState(GOLD);
-  const [selectedIcon, setSelectedIcon] = useState("📄");
-  const [localCats, setLocalCats] = useState<TemplateCategory[]>([]);
+  const [localCats, setLocalCats] = useState<Category[]>([]);
   const [reorderSaving, setReorderSaving] = useState(false);
 
-  // ── Data fetching ────────────────────────────────────────────────────────────
-  const { data, isLoading, mutate } = useSWR<ApiResponse>(
-    "/admin/categories/templates",
-    {
-      onSuccess: (d) => {
-        // Only seed local state on first load; after that local state owns order
-        if (localCats.length === 0) setLocalCats(d?.data ?? []);
-      },
+  // ── Data — GET /admin/categories ──────────────────────────────────────────
+  const { data, isLoading, mutate } = useSWR<ApiResponse>("/admin/categories", {
+    onSuccess: (d) => {
+      if (localCats.length === 0) {
+        setLocalCats(d?.categories ?? []);
+      }
     },
-  );
+  });
 
-  const allCats: TemplateCategory[] = localCats.length ? localCats : (data?.data ?? []);
+  const allCats: Category[] = localCats.length
+    ? localCats
+    : (data?.categories ?? []);
 
   const filtered = search
     ? allCats.filter(
@@ -357,102 +380,148 @@ export default function TemplateCategoriesPage() {
       )
     : allCats;
 
-  // ── Stats ────────────────────────────────────────────────────────────────────
-  const totalTemplates = allCats.reduce((s, c) => s + (c.templates_count ?? 0), 0);
   const activeCount = allCats.filter((c) => c.is_active).length;
+  const topLevelCount = allCats.filter((c) => !c.parent_id).length;
 
-  // ── Form ─────────────────────────────────────────────────────────────────────
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
-    defaultValues: { name: "", slug: "", description: "" },
-  });
+  // ── Form ──────────────────────────────────────────────────────────────────
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<FormValues>({ defaultValues: DEFAULT_FORM });
 
   const watchedName = watch("name");
+  const watchedSlug = watch("slug");
+  const watchedIsActive = watch("is_active");
 
   const openCreate = useCallback(() => {
-    reset({ name: "", slug: "", description: "" });
-    setSelectedColor(GOLD);
-    setSelectedIcon("📄");
+    reset(DEFAULT_FORM);
     setEditCat(null);
     setFormOpen(true);
   }, [reset]);
 
-  const openEdit = useCallback((cat: TemplateCategory) => {
-    reset({ name: cat.name, slug: cat.slug, description: cat.description ?? "" });
-    setSelectedColor(cat.color_hex);
-    setSelectedIcon(resolveIcon(cat.icon_name));
-    setEditCat(cat);
-    setFormOpen(true);
-  }, [reset]);
+  const openEdit = useCallback(
+    (cat: Category) => {
+      reset({
+        name: cat.name,
+        slug: cat.slug,
+        description: cat.description ?? "",
+        meta_title: cat.meta_title ?? "",
+        meta_description: cat.meta_description ?? "",
+        is_active: cat.is_active,
+      });
+      setEditCat(cat);
+      setFormOpen(true);
+    },
+    [reset],
+  );
 
+  // ── Submit — POST /admin/categories or PUT /admin/categories/:id ──────────
   const onSubmit = async (values: FormValues) => {
     setSubmitLoading(true);
     try {
-      // Send color_hex and icon_name to match API field names
-      const nextOrder = editCat
-        ? editCat.display_order
-        : Math.max(0, ...allCats.map((c) => c.display_order)) + 1;
-
       const payload = {
-        name: values.name,
-        slug: values.slug?.trim() || toSlug(values.name),
-        description: values.description,
-        color_hex: selectedColor,
-        icon_name: EMOJI_TO_ICON_NAME[selectedIcon] ?? selectedIcon,
-        display_order: nextOrder,
+        name: values.name.trim(),
+        slug: values.slug.trim() || toSlug(values.name),
+        description: values.description || null,
+        meta_title: values.meta_title || null,
+        meta_description: values.meta_description || null,
+        is_active: values.is_active,
+        display_order: editCat
+          ? editCat.display_order
+          : Math.max(0, ...allCats.map((c) => c.display_order)) + 1,
       };
+
       if (editCat) {
-        await api.put(`/admin/categories/templates/${editCat.id}`, payload);
+        await api.put(`/admin/categories/${editCat.id}`, payload);
         enqueueSnackbar("Category updated", { variant: "success" });
       } else {
-        await api.post("/admin/categories/templates", payload);
+        await api.post("/admin/categories", payload);
         enqueueSnackbar("Category created", { variant: "success" });
       }
+
       setLocalCats([]);
       await mutate();
       setFormOpen(false);
-    } catch {
-      enqueueSnackbar("Save failed", { variant: "error" });
+    } catch (e: any) {
+      const msg = e?.response?.data?.error ?? "Save failed";
+      enqueueSnackbar(msg, { variant: "error" });
     } finally {
       setSubmitLoading(false);
     }
   };
 
+  // ── Delete — DELETE /admin/categories/:id ─────────────────────────────────
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (deleteId === null) return;
     setDeleteLoading(true);
     try {
-      await api.delete(`/admin/categories/templates/${deleteId}`);
+      await api.delete(`/admin/categories/${deleteId}`);
       enqueueSnackbar("Category deleted", { variant: "success" });
       setLocalCats((prev) => prev.filter((c) => c.id !== deleteId));
       setDeleteId(null);
       await mutate();
-    } catch {
-      enqueueSnackbar("Delete failed — reassign templates first", { variant: "error" });
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.error ?? "Delete failed", {
+        variant: "error",
+      });
     } finally {
       setDeleteLoading(false);
     }
   };
 
+  // ── Toggle visibility — PUT /admin/categories/:id ─────────────────────────
+  // Backend has no dedicated toggle endpoint — use the update endpoint
   const handleToggle = async (id: number, active: boolean) => {
-    // Optimistic update
-    setLocalCats((prev) => prev.map((c) => (c.id === id ? { ...c, is_active: active } : c)));
+    setLocalCats((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, is_active: active } : c)),
+    );
     try {
-      await api.patch(`/admin/categories/templates/${id}/toggle`, { is_active: active });
-      enqueueSnackbar(active ? "Category visible" : "Category hidden", { variant: "success" });
+      const cat = allCats.find((c) => c.id === id);
+      if (!cat) return;
+      await api.put(`/admin/categories/${id}`, {
+        name: cat.name,
+        slug: cat.slug,
+        description: cat.description ?? null,
+        meta_title: cat.meta_title ?? null,
+        meta_description: cat.meta_description ?? null,
+        display_order: cat.display_order,
+        is_active: active,
+      });
+      enqueueSnackbar(active ? "Category visible" : "Category hidden", {
+        variant: "success",
+      });
     } catch {
+      // Revert optimistic update
+      setLocalCats((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, is_active: !active } : c)),
+      );
       enqueueSnackbar("Toggle failed", { variant: "error" });
-      // Revert on failure
-      setLocalCats((prev) => prev.map((c) => (c.id === id ? { ...c, is_active: !active } : c)));
     }
   };
 
-  const handleReorder = async (newOrder: TemplateCategory[]) => {
-    setLocalCats(newOrder);
+  // ── Reorder — no dedicated endpoint, save display_order per item ──────────
+  const handleReorder = async (newOrder: Category[]) => {
+    const updated = newOrder.map((c, i) => ({ ...c, display_order: i + 1 }));
+    setLocalCats(updated);
     setReorderSaving(true);
     try {
-      await api.post("/admin/categories/templates/reorder", {
-        order: newOrder.map((c, i) => ({ id: c.id, display_order: i + 1 })),
-      });
+      await Promise.all(
+        updated.map((c) =>
+          api.put(`/admin/categories/${c.id}`, {
+            name: c.name,
+            slug: c.slug,
+            description: c.description ?? null,
+            meta_title: c.meta_title ?? null,
+            meta_description: c.meta_description ?? null,
+            display_order: c.display_order,
+            is_active: c.is_active,
+          }),
+        ),
+      );
     } catch {
       enqueueSnackbar("Reorder save failed", { variant: "warning" });
     } finally {
@@ -460,17 +529,22 @@ export default function TemplateCategoriesPage() {
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <PageWrapper
       title="Template Categories"
       subtitle={
         isLoading
           ? "Loading…"
-          : `${allCats.length} categor${allCats.length !== 1 ? "ies" : "y"} · ${totalTemplates} templates assigned`
+          : `${allCats.length} categor${allCats.length !== 1 ? "ies" : "y"}`
       }
       actions={
-        <Button variant="contained" size="small" startIcon={<AddRounded />} onClick={openCreate}>
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<AddRounded />}
+          onClick={openCreate}
+        >
           New Category
         </Button>
       }
@@ -480,48 +554,106 @@ export default function TemplateCategoriesPage() {
         {[
           { label: "Total", value: allCats.length, color: GOLD },
           { label: "Active", value: activeCount, color: "#4CAF82" },
-          { label: "Hidden", value: allCats.length - activeCount, color: "#6B8CAE" },
-          { label: "Templates", value: totalTemplates, color: "#4A8FD4" },
+          {
+            label: "Hidden",
+            value: allCats.length - activeCount,
+            color: "#6B8CAE",
+          },
+          { label: "Top-level", value: topLevelCount, color: "#4A8FD4" },
         ].map((s, i) => (
           <Grid size={{ xs: 6, md: 3 }} key={s.label}>
-            <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
-              <Paper sx={{ p: 2, borderRadius: 2.5, textAlign: "center", background: alpha(s.color, 0.05), border: `1px solid ${alpha(s.color, 0.18)}` }}>
-                <Typography sx={{ fontSize: "1.75rem", fontFamily: '"DM Serif Display", serif', color: s.color, lineHeight: 1, mb: 0.4 }}>
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.07 }}
+            >
+              <Paper
+                sx={{
+                  p: 2,
+                  borderRadius: 2.5,
+                  textAlign: "center",
+                  background: alpha(s.color, 0.05),
+                  border: `1px solid ${alpha(s.color, 0.18)}`,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "1.75rem",
+                    fontFamily: '"DM Serif Display", serif',
+                    color: s.color,
+                    lineHeight: 1,
+                    mb: 0.4,
+                  }}
+                >
                   {isLoading ? "—" : s.value}
                 </Typography>
-                <Typography sx={{ fontSize: "0.7rem", color: "text.secondary" }}>{s.label}</Typography>
+                <Typography
+                  sx={{ fontSize: "0.7rem", color: "text.secondary" }}
+                >
+                  {s.label}
+                </Typography>
               </Paper>
             </motion.div>
           </Grid>
         ))}
       </Grid>
 
-      {/* Search + reorder hint */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, gap: 2 }}>
+      {/* Search + hint */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 2,
+          gap: 2,
+          flexWrap: "wrap",
+        }}
+      >
         <SearchBar
           placeholder="Search categories…"
           onSearch={useCallback((v: string) => setSearch(v), [])}
         />
-        <Typography sx={{ fontSize: "0.73rem", color: "text.disabled", display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+        <Typography
+          sx={{
+            fontSize: "0.72rem",
+            color: "text.disabled",
+            display: "flex",
+            alignItems: "center",
+            gap: 0.5,
+            flexShrink: 0,
+          }}
+        >
           <DragIndicatorRounded sx={{ fontSize: 14 }} />
-          {reorderSaving ? "Saving order…" : "Drag to reorder · auto-saved"}
+          {reorderSaving ? "Saving order…" : "Drag to reorder"}
         </Typography>
       </Box>
 
-      {/* Category list */}
+      {/* List */}
       <Paper sx={{ borderRadius: 3, p: 2.5 }}>
         {isLoading ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={78} sx={{ borderRadius: 3, mb: 1.5 }} />
+          Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              variant="rounded"
+              height={72}
+              sx={{ borderRadius: 3, mb: 1.5 }}
+            />
           ))
         ) : filtered.length === 0 ? (
           <Box sx={{ py: 10, textAlign: "center" }}>
-            <Box sx={{ fontSize: "3rem", mb: 2 }}>📂</Box>
+            <CategoryRounded
+              sx={{ fontSize: 48, color: "text.disabled", mb: 2 }}
+            />
             <Typography sx={{ color: "text.secondary", mb: 1.5 }}>
               {search ? "No categories match your search" : "No categories yet"}
             </Typography>
             {!search && (
-              <Button variant="outlined" size="small" startIcon={<AddRounded />} onClick={openCreate}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<AddRounded />}
+                onClick={openCreate}
+              >
                 Create first category
               </Button>
             )}
@@ -538,6 +670,7 @@ export default function TemplateCategoriesPage() {
                 <CategoryCard
                   key={cat.id}
                   cat={cat}
+                  allCats={allCats}
                   onEdit={openEdit}
                   onDelete={setDeleteId}
                   onToggle={handleToggle}
@@ -548,7 +681,7 @@ export default function TemplateCategoriesPage() {
         )}
       </Paper>
 
-      {/* Create / Edit dialog */}
+      {/* ── Create / Edit dialog ── */}
       <Dialog
         open={formOpen}
         onClose={() => !submitLoading && setFormOpen(false)}
@@ -557,25 +690,14 @@ export default function TemplateCategoriesPage() {
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
         <DialogTitle>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Box sx={{
-              width: 42, height: 42, borderRadius: 2, fontSize: "1.3rem",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: `linear-gradient(135deg, ${alpha(selectedColor, 0.28)}, ${alpha(selectedColor, 0.08)})`,
-              border: `1.5px solid ${alpha(selectedColor, 0.45)}`,
-              transition: "all 0.2s",
-            }}>
-              {selectedIcon}
-            </Box>
-            <Box>
-              <Typography sx={{ fontWeight: 600 }}>
-                {editCat ? `Edit: ${editCat.name}` : "New Category"}
-              </Typography>
-              <Typography sx={{ fontSize: "0.74rem", color: "text.secondary" }}>
-                Visible to users on the storefront
-              </Typography>
-            </Box>
-          </Box>
+          <Typography sx={{ fontWeight: 600 }}>
+            {editCat ? `Edit: ${editCat.name}` : "New Category"}
+          </Typography>
+          <Typography
+            sx={{ fontSize: "0.74rem", color: "text.secondary", mt: 0.25 }}
+          >
+            {editCat ? `/${editCat.slug}` : "Appears in the template browser"}
+          </Typography>
         </DialogTitle>
 
         <DialogContent>
@@ -586,33 +708,37 @@ export default function TemplateCategoriesPage() {
             noValidate
             sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 0.5 }}
           >
+            {/* Name */}
             <TextField
               {...register("name", { required: "Name is required" })}
               label="Category Name *"
               fullWidth
               autoFocus
               error={!!errors.name}
-              helperText={errors.name?.message ?? "Slug is auto-generated from name"}
-              {...register("name", {
-                required: "Name is required",
-                onChange: (e) => {
-                  if (!editCat) {
-                    setValue("slug", toSlug(e.target.value), { shouldDirty: true });
-                  }
-                },
-              })}
+              helperText={
+                errors.name?.message ?? "Slug is auto-generated from name"
+              }
+              onChange={(e) => {
+                setValue("name", e.target.value);
+                if (!editCat) {
+                  setValue("slug", toSlug(e.target.value), {
+                    shouldDirty: true,
+                  });
+                }
+              }}
             />
+
+            {/* Slug */}
             <TextField
               {...register("slug")}
               label="Slug"
               fullWidth
+              size="small"
               placeholder="auto-generated"
-              helperText={
-                watchedName
-                  ? `URL: /templates/${watch("slug") || toSlug(watchedName)}`
-                  : "URL: /templates/{slug}"
-              }
+              helperText={`URL: /templates/${watchedSlug || (watchedName ? toSlug(watchedName) : "{slug}")}`}
             />
+
+            {/* Description */}
             <TextField
               {...register("description")}
               label="Description (optional)"
@@ -621,53 +747,90 @@ export default function TemplateCategoriesPage() {
               rows={2}
               placeholder="Short description shown to users"
             />
-            <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
-            <ColorPicker value={selectedColor} onChange={setSelectedColor} />
-            <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
-            <IconPicker value={selectedIcon} onChange={setSelectedIcon} />
 
-            {/* Live preview */}
-            <Box sx={{
-              p: 2, borderRadius: 2.5,
-              background: alpha(selectedColor, 0.05),
-              border: `1px solid ${alpha(selectedColor, 0.2)}`,
-              display: "flex", alignItems: "center", gap: 2,
-            }}>
-              <Box sx={{
-                width: 44, height: 44, borderRadius: 2, fontSize: "1.4rem",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                background: alpha(selectedColor, 0.18),
-                border: `1.5px solid ${alpha(selectedColor, 0.4)}`,
-              }}>
-                {selectedIcon}
-              </Box>
+            {/* SEO */}
+            <TextField
+              {...register("meta_title")}
+              label="Meta Title (optional)"
+              fullWidth
+              size="small"
+              helperText={`${(watch("meta_title") ?? "").length}/200 chars`}
+            />
+            <TextField
+              {...register("meta_description")}
+              label="Meta Description (optional)"
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+            />
+
+            {/* Active toggle */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                p: 1.75,
+                borderRadius: 2,
+                background: alpha("#fff", 0.03),
+                border: "1px solid rgba(255,255,255,0.07)",
+              }}
+            >
               <Box>
-                <Typography sx={{ fontWeight: 600, color: selectedColor, fontSize: "0.88rem" }}>
-                  Live Preview
+                <Typography sx={{ fontSize: "0.85rem", fontWeight: 500 }}>
+                  Visible on storefront
                 </Typography>
-                <Typography sx={{ fontSize: "0.74rem", color: "text.secondary" }}>
-                  How it appears in the template browser
+                <Typography
+                  sx={{ fontSize: "0.73rem", color: "text.secondary" }}
+                >
+                  Category shows in template browser and filters
                 </Typography>
               </Box>
+              <Switch
+                checked={watchedIsActive}
+                onChange={(e) => setValue("is_active", e.target.checked)}
+                sx={{
+                  "& .Mui-checked": { color: GOLD },
+                  "& .Mui-checked + .MuiSwitch-track": {
+                    background: alpha(GOLD, 0.45),
+                  },
+                }}
+              />
             </Box>
           </Box>
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button onClick={() => setFormOpen(false)} variant="outlined" size="small" disabled={submitLoading}>
+          <Button
+            onClick={() => setFormOpen(false)}
+            variant="outlined"
+            size="small"
+            disabled={submitLoading}
+          >
             Cancel
           </Button>
-          <Button type="submit" form="cat-form" variant="contained" size="small" disabled={submitLoading}>
-            {submitLoading ? "Saving…" : editCat ? "Update Category" : "Create Category"}
+          <Button
+            type="submit"
+            form="cat-form"
+            variant="contained"
+            size="small"
+            disabled={submitLoading}
+          >
+            {submitLoading
+              ? "Saving…"
+              : editCat
+                ? "Update Category"
+                : "Create Category"}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete confirm */}
       <ConfirmDialog
-        open={!!deleteId}
+        open={deleteId !== null}
         title="Delete Category"
-        message="Permanently delete this category? Templates using it will need to be reassigned."
+        message="Permanently delete this category? Templates in it will become uncategorised."
         loading={deleteLoading}
         onConfirm={handleDelete}
         onClose={() => !deleteLoading && setDeleteId(null)}
