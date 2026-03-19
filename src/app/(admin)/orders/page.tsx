@@ -385,7 +385,7 @@ function ApprovalDialog({ order, open, onClose, onApproved }: {
               <Paper sx={{ borderRadius: 2, overflow: "hidden", mb: 2.5, border: "1px solid rgba(255,255,255,0.1)" }}>
                 <Box sx={{ p: 1.75, background: alpha(GOLD, 0.08), borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                   {[
-                    `FROM: noreply@merraki.com`,
+                    `FROM: info@merrakisolutions.com`,
                     `TO: ${order.customer_email}`,
                     `SUBJECT: ✅ Order ${order.order_number} Confirmed — Your downloads are ready`,
                   ].map((line) => (

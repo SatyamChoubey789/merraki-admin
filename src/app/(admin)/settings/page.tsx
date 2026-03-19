@@ -278,7 +278,7 @@ export default function SettingsPage() {
                     <TextField label="SMTP Port" value={s.smtp_port ?? ""} onChange={(e) => update("smtp_port", e.target.value)} sx={{ width: 120, flexShrink: 0 }} placeholder="587" />
                   </Box>
                   <TextField label="SMTP Username" value={s.smtp_user ?? ""} onChange={(e) => update("smtp_user", e.target.value)} fullWidth autoComplete="off" />
-                  <TextField label="From Email" value={s.smtp_from ?? ""} onChange={(e) => update("smtp_from", e.target.value)} fullWidth placeholder="noreply@merraki.com" />
+                  <TextField label="From Email" value={s.smtp_from ?? ""} onChange={(e) => update("smtp_from", e.target.value)} fullWidth placeholder="info@merrakisolutions.com" />
                 </Box>
               )}
             </Paper>
