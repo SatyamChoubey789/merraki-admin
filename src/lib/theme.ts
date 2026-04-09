@@ -17,27 +17,62 @@ const BORDER = "rgba(255,255,255,0.08)";
 export const merrakiTheme = createTheme({
   palette: {
     mode: "dark",
-    primary: { main: GOLD, light: "#D4B96A", dark: "#A8872E", contrastText: "#0D1B2A" },
+    primary: {
+      main: GOLD,
+      light: "#D4B96A",
+      dark: "#A8872E",
+      contrastText: "#0D1B2A",
+    },
     secondary: { main: "#6B8CAE", light: "#8FAEC8", dark: "#4A6B8A" },
     background: { default: NAVY, paper: CHARCOAL },
-    gold: { main: GOLD, light: "#D4B96A", dark: "#A8872E", contrastText: "#0D1B2A" },
+    gold: {
+      main: GOLD,
+      light: "#D4B96A",
+      dark: "#A8872E",
+      contrastText: "#0D1B2A",
+    },
     success: { main: "#4CAF82", light: "#6EC99E", dark: "#357A5E" },
     warning: { main: "#E8A838", light: "#F0C070", dark: "#B8832A" },
     error: { main: "#E05C5C", light: "#E88080", dark: "#B84040" },
     info: { main: "#4A8FD4", light: "#70AADC", dark: "#3370A8" },
     divider: BORDER,
-    text: { primary: "#F0EDE8", secondary: "rgba(240,237,232,0.55)", disabled: "rgba(240,237,232,0.3)" },
+    text: {
+      primary: "#F0EDE8",
+      secondary: "rgba(240,237,232,0.55)",
+      disabled: "rgba(240,237,232,0.3)",
+    },
   },
   typography: {
     fontFamily: '"DM Sans", "Helvetica Neue", Arial, sans-serif',
-    h1: { fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400, letterSpacing: "-0.02em" },
-    h2: { fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400, letterSpacing: "-0.02em" },
-    h3: { fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400, letterSpacing: "-0.01em" },
+    h1: {
+      fontFamily: '"DM Serif Display", Georgia, serif',
+      fontWeight: 400,
+      letterSpacing: "-0.02em",
+    },
+    h2: {
+      fontFamily: '"DM Serif Display", Georgia, serif',
+      fontWeight: 400,
+      letterSpacing: "-0.02em",
+    },
+    h3: {
+      fontFamily: '"DM Serif Display", Georgia, serif',
+      fontWeight: 400,
+      letterSpacing: "-0.01em",
+    },
     h4: { fontFamily: '"DM Serif Display", Georgia, serif', fontWeight: 400 },
-    h5: { fontFamily: '"DM Sans", sans-serif', fontWeight: 600, letterSpacing: "0.01em" },
+    h5: {
+      fontFamily: '"DM Sans", sans-serif',
+      fontWeight: 600,
+      letterSpacing: "0.01em",
+    },
     h6: { fontFamily: '"DM Sans", sans-serif', fontWeight: 600 },
     subtitle1: { fontWeight: 500, letterSpacing: "0.02em" },
-    subtitle2: { fontWeight: 500, letterSpacing: "0.04em", textTransform: "uppercase", fontSize: "0.7rem" },
+    subtitle2: {
+      fontWeight: 500,
+      letterSpacing: "0.04em",
+      textTransform: "uppercase",
+      fontSize: "0.7rem",
+    },
     body1: { lineHeight: 1.7 },
     button: { fontWeight: 600, letterSpacing: "0.06em" },
     caption: { letterSpacing: "0.06em", opacity: 0.6 },
@@ -146,7 +181,13 @@ export const merrakiTheme = createTheme({
     },
     MuiTooltip: {
       styleOverrides: {
-        tooltip: { borderRadius: 8, fontSize: "0.75rem", background: alpha(CHARCOAL, 0.95), backdropFilter: "blur(10px)", border: `1px solid ${BORDER}` },
+        tooltip: {
+          borderRadius: 8,
+          fontSize: "0.75rem",
+          background: alpha(CHARCOAL, 0.95),
+          backdropFilter: "blur(10px)",
+          border: `1px solid ${BORDER}`,
+        },
       },
     },
     MuiLinearProgress: {
@@ -185,7 +226,11 @@ export const merrakiTheme = createTheme({
     },
     MuiMenuItem: {
       styleOverrides: {
-        root: { borderRadius: 8, margin: "2px 6px", "&:hover": { background: alpha(GOLD, 0.08) } },
+        root: {
+          borderRadius: 8,
+          margin: "2px 6px",
+          "&:hover": { background: alpha(GOLD, 0.08) },
+        },
       },
     },
     MuiAlert: {

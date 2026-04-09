@@ -11,7 +11,6 @@ import NotificationCenter from "@/components/layout/Notificationcenter";
 import { useAppShortcuts } from "@/hooks/useKeyboardShortcuts";
 import api from "@/lib/axios";
 
-
 const GOLD = "#C9A84C";
 
 function LoadingScreen() {
@@ -109,8 +108,8 @@ export default function AdminLayout({
 
           router.replace(
             `/login?reason=session_expired&from=${encodeURIComponent(
-              pathname
-            )}`
+              pathname,
+            )}`,
           );
         }
       } finally {

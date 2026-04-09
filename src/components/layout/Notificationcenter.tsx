@@ -2,13 +2,27 @@
 import { useState, useCallback } from "react";
 import useSWR from "swr";
 import {
-  Box, Drawer, Typography, IconButton, Divider, Avatar,
-  Chip, Skeleton, Tooltip, Badge,
+  Box,
+  Drawer,
+  Typography,
+  IconButton,
+  Divider,
+  Avatar,
+  Chip,
+  Skeleton,
+  Tooltip,
+  Badge,
 } from "@mui/material";
 import {
-  CloseRounded, ShoppingCartRounded, ContactMailRounded,
-  PeopleRounded, EmailRounded, CheckCircleRounded,
-  NotificationsRounded, RefreshRounded, DoneAllRounded,
+  CloseRounded,
+  ShoppingCartRounded,
+  ContactMailRounded,
+  PeopleRounded,
+  EmailRounded,
+  CheckCircleRounded,
+  NotificationsRounded,
+  RefreshRounded,
+  DoneAllRounded,
 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import { alpha } from "@mui/material";
@@ -89,7 +103,10 @@ function NotifItem({
           onNavigate(notif.actionUrl);
         }}
         sx={{
-          display: "flex", gap: 1.5, px: 2.5, py: 2,
+          display: "flex",
+          gap: 1.5,
+          px: 2.5,
+          py: 2,
           cursor: notif.actionUrl ? "pointer" : "default",
           position: "relative",
           background: notif.read ? "transparent" : alpha(GOLD, 0.03),
@@ -101,9 +118,13 @@ function NotifItem({
         {!notif.read && (
           <Box
             sx={{
-              position: "absolute", left: 10, top: "50%",
+              position: "absolute",
+              left: 10,
+              top: "50%",
               transform: "translateY(-50%)",
-              width: 6, height: 6, borderRadius: "50%",
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
               background: GOLD,
               boxShadow: `0 0 8px ${alpha(GOLD, 0.6)}`,
             }}
@@ -113,11 +134,16 @@ function NotifItem({
         {/* Icon */}
         <Box
           sx={{
-            width: 34, height: 34, borderRadius: "10px",
+            width: 34,
+            height: 34,
+            borderRadius: "10px",
             background: cfg.bg,
             border: `1px solid ${alpha(cfg.color, 0.2)}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: cfg.color, flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: cfg.color,
+            flexShrink: 0,
           }}
         >
           {cfg.icon}
@@ -147,7 +173,9 @@ function NotifItem({
           >
             {notif.body}
           </Typography>
-          <Typography sx={{ fontSize: "0.68rem", color: "text.disabled", mt: 0.5 }}>
+          <Typography
+            sx={{ fontSize: "0.68rem", color: "text.disabled", mt: 0.5 }}
+          >
             {dayjs(notif.createdAt).fromNow()}
           </Typography>
         </Box>
@@ -157,9 +185,14 @@ function NotifItem({
           <Tooltip title="Mark read" placement="left">
             <IconButton
               size="small"
-              onClick={(e) => { e.stopPropagation(); onMarkRead(notif.id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMarkRead(notif.id);
+              }}
               sx={{
-                alignSelf: "flex-start", mt: 0.25, flexShrink: 0,
+                alignSelf: "flex-start",
+                mt: 0.25,
+                flexShrink: 0,
                 color: "rgba(240,237,232,0.2)",
                 "&:hover": { color: GOLD, background: alpha(GOLD, 0.1) },
               }}
@@ -179,39 +212,44 @@ interface NotificationCenterProps {
   onClose: () => void;
 }
 
-export default function NotificationCenter({ open, onClose }: NotificationCenterProps) {
+export default function NotificationCenter({
+  open,
+  onClose,
+}: NotificationCenterProps) {
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
   // Poll every 30s
-  const { data, isLoading, mutate } = useSWR(
-    "/admin/dashboard/notifications",
-    { refreshInterval: 30_000, revalidateOnFocus: true }
-  );
+  const { data, isLoading, mutate } = useSWR("/admin/dashboard/notifications", {
+    refreshInterval: 30_000,
+    revalidateOnFocus: true,
+  });
 
   const notifications: Notification[] = data?.data?.data ?? [];
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const filtered = filter === "unread"
-    ? notifications.filter((n) => !n.read)
-    : notifications;
+  const filtered =
+    filter === "unread" ? notifications.filter((n) => !n.read) : notifications;
 
-  const handleMarkRead = useCallback(async (id: string) => {
-    // Optimistic update
-    mutate(
-      (prev: { data: Notification[] } | undefined) => ({
-        ...prev,
-        data: prev?.data?.map((n) =>
-          n.id === id ? { ...n, read: true } : n
-        ) ?? [],
-      }),
-      false
-    );
-    try {
-      await api.patch(`/admin/dashboard/notifications/${id}/read`);
-    } catch {
-      mutate(); // revert on error
-    }
-  }, [mutate]);
+  const handleMarkRead = useCallback(
+    async (id: string) => {
+      // Optimistic update
+      mutate(
+        (prev: { data: Notification[] } | undefined) => ({
+          ...prev,
+          data:
+            prev?.data?.map((n) => (n.id === id ? { ...n, read: true } : n)) ??
+            [],
+        }),
+        false,
+      );
+      try {
+        await api.patch(`/admin/dashboard/notifications/${id}/read`);
+      } catch {
+        mutate(); // revert on error
+      }
+    },
+    [mutate],
+  );
 
   const handleMarkAllRead = useCallback(async () => {
     mutate(
@@ -219,7 +257,7 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
         ...prev,
         data: prev?.data?.map((n) => ({ ...n, read: true })) ?? [],
       }),
-      false
+      false,
     );
     try {
       await api.post("/admin/notifications/read-all");
@@ -228,12 +266,15 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
     }
   }, [mutate]);
 
-  const handleNavigate = useCallback((url?: string) => {
-    if (url) {
-      window.location.href = url;
-      onClose();
-    }
-  }, [onClose]);
+  const handleNavigate = useCallback(
+    (url?: string) => {
+      if (url) {
+        window.location.href = url;
+        onClose();
+      }
+    },
+    [onClose],
+  );
 
   // Group by type for the summary chips
   const typeCounts = notifications.reduce<Record<string, number>>((acc, n) => {
@@ -265,10 +306,14 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
       {/* Header */}
       <Box
         sx={{
-          px: 2.5, py: 2,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
+          px: 2.5,
+          py: 2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           borderBottom: "1px solid rgba(255,255,255,0.07)",
-          position: "sticky", top: 0,
+          position: "sticky",
+          top: 0,
           background: "rgba(17,24,39,0.98)",
           backdropFilter: "blur(20px)",
           zIndex: 1,
@@ -277,16 +322,26 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
           <Box
             sx={{
-              width: 34, height: 34, borderRadius: "10px",
+              width: 34,
+              height: 34,
+              borderRadius: "10px",
               background: alpha(GOLD, 0.12),
               border: `1px solid ${alpha(GOLD, 0.2)}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             <Badge
               badgeContent={unreadCount}
               color="error"
-              sx={{ "& .MuiBadge-badge": { fontSize: "0.6rem", height: 15, minWidth: 15 } }}
+              sx={{
+                "& .MuiBadge-badge": {
+                  fontSize: "0.6rem",
+                  height: 15,
+                  minWidth: 15,
+                },
+              }}
             >
               <NotificationsRounded sx={{ fontSize: 18, color: GOLD }} />
             </Badge>
@@ -336,20 +391,26 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
       {Object.keys(typeCounts).length > 0 && (
         <Box
           sx={{
-            px: 2.5, py: 1.5,
-            display: "flex", gap: 1, flexWrap: "wrap",
+            px: 2.5,
+            py: 1.5,
+            display: "flex",
+            gap: 1,
+            flexWrap: "wrap",
             borderBottom: "1px solid rgba(255,255,255,0.05)",
           }}
         >
           {Object.entries(typeCounts).map(([type, count]) => {
-            const cfg = TYPE_CONFIG[type as keyof typeof TYPE_CONFIG] ?? TYPE_CONFIG.system;
+            const cfg =
+              TYPE_CONFIG[type as keyof typeof TYPE_CONFIG] ??
+              TYPE_CONFIG.system;
             return (
               <Chip
                 key={type}
                 label={`${count} ${type}`}
                 size="small"
                 sx={{
-                  fontSize: "0.68rem", height: 22,
+                  fontSize: "0.68rem",
+                  height: 22,
                   background: cfg.bg,
                   color: cfg.color,
                   border: `1px solid ${alpha(cfg.color, 0.25)}`,
@@ -364,10 +425,13 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
       {/* Filter tabs */}
       <Box
         sx={{
-          display: "flex", gap: 0,
-          mx: 2.5, my: 1.5,
+          display: "flex",
+          gap: 0,
+          mx: 2.5,
+          my: 1.5,
           background: alpha("#fff", 0.04),
-          borderRadius: 2, p: 0.4,
+          borderRadius: 2,
+          p: 0.4,
           border: "1px solid rgba(255,255,255,0.06)",
         }}
       >
@@ -376,12 +440,16 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
             key={f}
             onClick={() => setFilter(f)}
             sx={{
-              flex: 1, py: 0.7, textAlign: "center",
-              borderRadius: 1.5, cursor: "pointer",
+              flex: 1,
+              py: 0.7,
+              textAlign: "center",
+              borderRadius: 1.5,
+              cursor: "pointer",
               transition: "all 0.2s",
               background: filter === f ? alpha(GOLD, 0.15) : "transparent",
               color: filter === f ? GOLD : "text.secondary",
-              fontSize: "0.78rem", fontWeight: filter === f ? 600 : 400,
+              fontSize: "0.78rem",
+              fontWeight: filter === f ? 600 : 400,
               textTransform: "capitalize",
             }}
           >
@@ -395,11 +463,26 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
         {isLoading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <Box key={i} sx={{ display: "flex", gap: 1.5, px: 2.5, py: 2 }}>
-              <Skeleton variant="rounded" width={34} height={34} sx={{ borderRadius: "10px", flexShrink: 0 }} />
+              <Skeleton
+                variant="rounded"
+                width={34}
+                height={34}
+                sx={{ borderRadius: "10px", flexShrink: 0 }}
+              />
               <Box sx={{ flex: 1 }}>
                 <Skeleton variant="text" width="70%" height={16} />
-                <Skeleton variant="text" width="90%" height={14} sx={{ mt: 0.5 }} />
-                <Skeleton variant="text" width="30%" height={12} sx={{ mt: 0.5 }} />
+                <Skeleton
+                  variant="text"
+                  width="90%"
+                  height={14}
+                  sx={{ mt: 0.5 }}
+                />
+                <Skeleton
+                  variant="text"
+                  width="30%"
+                  height={12}
+                  sx={{ mt: 0.5 }}
+                />
               </Box>
             </Box>
           ))
@@ -407,16 +490,25 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
           <Box sx={{ py: 8, textAlign: "center" }}>
             <Box
               sx={{
-                width: 56, height: 56, borderRadius: "50%",
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
                 background: alpha(GOLD, 0.08),
-                display: "flex", alignItems: "center", justifyContent: "center",
-                mx: "auto", mb: 2,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                mx: "auto",
+                mb: 2,
               }}
             >
-              <NotificationsRounded sx={{ color: alpha(GOLD, 0.4), fontSize: 26 }} />
+              <NotificationsRounded
+                sx={{ color: alpha(GOLD, 0.4), fontSize: 26 }}
+              />
             </Box>
             <Typography sx={{ color: "text.secondary", fontSize: "0.875rem" }}>
-              {filter === "unread" ? "No unread notifications" : "No notifications yet"}
+              {filter === "unread"
+                ? "No unread notifications"
+                : "No notifications yet"}
             </Typography>
           </Box>
         ) : (
@@ -429,7 +521,9 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
                   onNavigate={handleNavigate}
                   index={i}
                 />
-                <Divider sx={{ borderColor: "rgba(255,255,255,0.04)", mx: 2 }} />
+                <Divider
+                  sx={{ borderColor: "rgba(255,255,255,0.04)", mx: 2 }}
+                />
               </Box>
             ))}
           </AnimatePresence>
@@ -439,7 +533,8 @@ export default function NotificationCenter({ open, onClose }: NotificationCenter
       {/* Footer */}
       <Box
         sx={{
-          px: 2.5, py: 2,
+          px: 2.5,
+          py: 2,
           borderTop: "1px solid rgba(255,255,255,0.06)",
           textAlign: "center",
         }}

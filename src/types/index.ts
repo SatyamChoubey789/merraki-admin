@@ -123,8 +123,6 @@ export interface TemplateCategory {
   id: number;
   name: string;
   slug: string;
-  color: string;
-  icon: string;
   sort_order: number;
   is_active: boolean;
   template_count?: number;
@@ -138,7 +136,7 @@ export interface Template {
   title: string;
   description?: string;
   detailed_description?: string;
-  price_inr: number;
+  price: number;
   category_id: number;
   category?: TemplateCategory;
   tags: string[] | null;

@@ -136,7 +136,7 @@ function HeatCell({
 
   return (
     <Tooltip
-      title={`${dayjs(date).format("MMM D")}: ₹${value.toLocaleString()}`}
+      title={`${dayjs(date).format("MMM D")}: $${value.toLocaleString()}`}
       placement="top"
     >
       <Box
@@ -289,7 +289,7 @@ export default function DashboardPage() {
             trend: stats?.revenueGrowth,
             delay: 0.07,
             sparkline: sparklines.revenue,
-            prefix: "₹",
+            prefix: "$",
           },
           {
             title: "Pending Orders",
@@ -453,7 +453,7 @@ export default function DashboardPage() {
                         axisLine={false}
                         tickLine={false}
                         tickFormatter={(v: number) =>
-                          `₹${v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v}`
+                          `$${v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v}`
                         }
                       />
                       {(chartTab === 1 || chartTab === 2) && (
