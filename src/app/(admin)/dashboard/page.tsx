@@ -45,43 +45,45 @@ import StatCard from "@/components/ui/StatCard";
 dayjs.extend(relativeTime);
 
 const GOLD = "#C9A84C";
-const PIE_COLORS = [
-  GOLD,
-  "#4CAF82",
-  "#E05C5C",
-  "#4A8FD4",
-  "#E8A838",
-  "#9B59B6",
-];
+const PIE_COLORS = [GOLD, "#4CAF82", "#E05C5C", "#4A8FD4", "#E8A838", "#9B59B6"];
 
-// ── Backend response shapes ───────────────────────────────────────────────────
-// response.SuccessData wraps as: { success: true, data: <payload> }
+// ── Safe number helpers ────────────────────────────────────────────────────────
+/** Coerce any value to a finite number, defaulting to 0. */
+function n(v: unknown): number {
+  const x = Number(v);
+  return isFinite(x) ? x : 0;
+}
+/** Format as locale string, safe against undefined/null/NaN. */
+function fmt(v: unknown): string {
+  return n(v).toLocaleString();
+}
 
+// ── Backend response shapes ────────────────────────────────────────────────────
 interface StatsPayload {
-  totalOrders: number;
-  pendingOrders: number;
-  totalRevenue: number;
-  revenueGrowth: number;
-  completedToday: number;
-  totalBlogPosts: number;
-  publishedBlogPosts: number;
-  totalTemplates: number;
-  activeTemplates: number;
-  totalUsers: number;
-  activeUsers: number;
-  userGrowth: number;
-  newsletter: { total: number; active: number };
-  contacts: { total: number; new: number };
-  ordersByStatus: Array<{ status: string; count: number }>;
-  monthlyRevenue: Array<{ month: string; revenue: number; orders: number }>;
-  dailyRevenue: Array<{ date: string; value: number }>;
-  conversionFunnel: {
-    visitors: number;
-    signups: number;
-    testCompleted: number;
-    purchased: number;
+  totalOrders?: number;
+  pendingOrders?: number;
+  totalRevenue?: number;
+  revenueGrowth?: number;
+  completedToday?: number;
+  totalBlogPosts?: number;
+  publishedBlogPosts?: number;
+  totalTemplates?: number;
+  activeTemplates?: number;
+  totalUsers?: number;
+  activeUsers?: number;
+  userGrowth?: number;
+  newsletter?: { total?: number; active?: number };
+  contacts?: { total?: number; new?: number };
+  ordersByStatus?: Array<{ status: string; count: number }>;
+  monthlyRevenue?: Array<{ month: string; revenue: number; orders: number }>;
+  dailyRevenue?: Array<{ date: string; value: number }>;
+  conversionFunnel?: {
+    visitors?: number;
+    signups?: number;
+    testCompleted?: number;
+    purchased?: number;
   };
-  sparklines: {
+  sparklines?: {
     users?: number[];
     orders?: number[];
     revenue?: number[];
@@ -107,68 +109,40 @@ interface StatsResponse {
 
 interface ActivityResponse {
   success: boolean;
-  data: {
-    activities: ActivityLog[];
-  };
+  data: { activities: ActivityLog[] };
 }
 
-// ── Revenue heatmap cell ──────────────────────────────────────────────────────
-function HeatCell({
-  value,
-  max,
-  date,
-}: {
-  value: number;
-  max: number;
-  date: string;
-}) {
+// ── Revenue heatmap cell ───────────────────────────────────────────────────────
+function HeatCell({ value, max, date }: { value: number; max: number; date: string }) {
   const intensity = max > 0 ? value / max : 0;
   const bg =
-    intensity === 0
-      ? alpha("#fff", 0.04)
-      : intensity < 0.25
-        ? alpha(GOLD, 0.15)
-        : intensity < 0.5
-          ? alpha(GOLD, 0.3)
-          : intensity < 0.75
-            ? alpha(GOLD, 0.55)
-            : alpha(GOLD, 0.85);
-
+    intensity === 0          ? alpha("#fff", 0.04)
+    : intensity < 0.25       ? alpha(GOLD, 0.15)
+    : intensity < 0.5        ? alpha(GOLD, 0.30)
+    : intensity < 0.75       ? alpha(GOLD, 0.55)
+                             : alpha(GOLD, 0.85);
   return (
-    <Tooltip
-      title={`${dayjs(date).format("MMM D")}: $${value.toLocaleString()}`}
-      placement="top"
-    >
-      <Box
-        sx={{
-          width: { xs: 10, sm: 14 },
-          height: { xs: 10, sm: 14 },
-          borderRadius: 0.5,
-          background: bg,
-          border: `1px solid ${alpha("#fff", 0.04)}`,
-          transition: "transform 0.15s",
-          cursor: "default",
-          "&:hover": { transform: "scale(1.3)", zIndex: 1 },
-        }}
-      />
+    <Tooltip title={`${dayjs(date).format("MMM D")}: $${n(value).toLocaleString()}`} placement="top">
+      <Box sx={{
+        width: { xs: 10, sm: 14 },
+        height: { xs: 10, sm: 14 },
+        borderRadius: 0.5,
+        background: bg,
+        border: `1px solid ${alpha("#fff", 0.04)}`,
+        transition: "transform 0.15s",
+        cursor: "default",
+        "&:hover": { transform: "scale(1.3)", zIndex: 1 },
+      }} />
     </Tooltip>
   );
 }
 
-// ── Funnel bar ────────────────────────────────────────────────────────────────
+// ── Funnel bar ─────────────────────────────────────────────────────────────────
 function FunnelBar({
-  label,
-  value,
-  max,
-  color,
-  pct,
-}: {
-  label: string;
-  value: number;
-  max: number;
-  color: string;
-  pct?: number;
-}) {
+  label, value, max, color, pct,
+}: { label: string; value: number; max: number; color: string; pct?: number }) {
+  const safeValue = n(value);
+  const safeMax   = n(max) || 1;
   return (
     <Box sx={{ mb: 1.5 }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
@@ -177,39 +151,21 @@ function FunnelBar({
         </Typography>
         <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
           <Typography sx={{ fontSize: "0.8rem", fontWeight: 600 }}>
-            {value.toLocaleString()}
+            {safeValue.toLocaleString()}
           </Typography>
           {pct !== undefined && (
-            <Typography
-              sx={{
-                fontSize: "0.7rem",
-                color: pct > 20 ? "#4CAF82" : "text.disabled",
-              }}
-            >
+            <Typography sx={{ fontSize: "0.7rem", color: pct > 20 ? "#4CAF82" : "text.disabled" }}>
               {pct}%
             </Typography>
           )}
         </Box>
       </Box>
-      <Box
-        sx={{
-          height: 6,
-          borderRadius: 3,
-          background: alpha("#fff", 0.06),
-          overflow: "hidden",
-        }}
-      >
+      <Box sx={{ height: 6, borderRadius: 3, background: alpha("#fff", 0.06), overflow: "hidden" }}>
         <motion.div
           initial={{ width: 0 }}
-          animate={{
-            width: `${Math.min((value / Math.max(max, 1)) * 100, 100)}%`,
-          }}
+          animate={{ width: `${Math.min((safeValue / safeMax) * 100, 100)}%` }}
           transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-          style={{
-            height: "100%",
-            background: `linear-gradient(90deg, ${color}, ${alpha(color, 0.7)})`,
-            borderRadius: 3,
-          }}
+          style={{ height: "100%", background: `linear-gradient(90deg, ${color}, ${alpha(color, 0.7)})`, borderRadius: 3 }}
         />
       </Box>
     </Box>
@@ -223,49 +179,50 @@ const CHART_TOOLTIP_STYLE = {
   fontSize: 12,
 };
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
+// ── Dashboard ──────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [chartTab, setChartTab] = useState(0);
 
-  const { data: statsRes, isLoading: statsLoading } = useSWR<StatsResponse>(
-    "/admin/dashboard/stats",
-    { refreshInterval: 60_000 },
-  );
+  const { data: statsRes, isLoading: statsLoading } =
+    useSWR<StatsResponse>("/admin/dashboard/stats", { refreshInterval: 60_000 });
 
   const { data: activityRes, isLoading: activityLoading } =
-    useSWR<ActivityResponse>("/admin/dashboard/activity", {
-      refreshInterval: 30_000,
-    });
+    useSWR<ActivityResponse>("/admin/dashboard/activity", { refreshInterval: 30_000 });
 
-  // Backend wraps with response.SuccessData → { success, data: <payload> }
-  const stats: StatsPayload | undefined = statsRes?.data;
+  // Safely unwrap — stats may be undefined until the request resolves
+  const stats = statsRes?.data ?? ({} as StatsPayload);
   const activity: ActivityLog[] = activityRes?.data?.activities ?? [];
 
-  // Heatmap — last 84 days
-  const heatData =
-    Array.isArray(stats?.dailyRevenue) && stats!.dailyRevenue.length > 0
-      ? stats!.dailyRevenue
+  // ── Derived / coerced values ──────────────────────────────────────────────
+  const heatData: Array<{ date: string; value: number }> =
+    Array.isArray(stats.dailyRevenue) && stats.dailyRevenue.length > 0
+      ? stats.dailyRevenue.map((d) => ({ date: d.date, value: n(d.value) }))
       : Array.from({ length: 84 }, (_, i) => ({
-          date: dayjs()
-            .subtract(83 - i, "day")
-            .format("YYYY-MM-DD"),
+          date: dayjs().subtract(83 - i, "day").format("YYYY-MM-DD"),
           value: 0,
         }));
   const heatMax = Math.max(...heatData.map((d) => d.value), 1);
 
-  const funnel = stats?.conversionFunnel ?? {
-    visitors: 0,
-    signups: 0,
-    testCompleted: 0,
-    purchased: 0,
+  const funnel = {
+    visitors:      n(stats.conversionFunnel?.visitors),
+    signups:       n(stats.conversionFunnel?.signups),
+    testCompleted: n(stats.conversionFunnel?.testCompleted),
+    purchased:     n(stats.conversionFunnel?.purchased),
   };
-  const sparklines = stats?.sparklines ?? {};
-  const ordersByStatus = Array.isArray(stats?.ordersByStatus)
-    ? stats!.ordersByStatus
-    : [];
-  const monthlyRevenue = Array.isArray(stats?.monthlyRevenue)
-    ? stats!.monthlyRevenue
-    : [];
+
+  const sparklines   = stats.sparklines ?? {};
+  const ordersByStatus: Array<{ status: string; count: number }> =
+    Array.isArray(stats.ordersByStatus) ? stats.ordersByStatus : [];
+  const monthlyRevenue: Array<{ month: string; revenue: number; orders: number }> =
+    Array.isArray(stats.monthlyRevenue)
+      ? stats.monthlyRevenue.map((m) => ({
+          month:   m.month,
+          revenue: n(m.revenue),
+          orders:  n(m.orders),
+        }))
+      : [];
+
+  const totalOrders = n(stats.totalOrders);
 
   return (
     <PageWrapper title="Dashboard" subtitle="Platform overview · live data">
@@ -274,26 +231,26 @@ export default function DashboardPage() {
         {[
           {
             title: "Total Orders",
-            value: stats?.totalOrders ?? 0,
+            value: n(stats.totalOrders),
             icon: <ShoppingCartRounded />,
             color: "#4A8FD4",
             delay: 0,
             sparkline: sparklines.orders,
-            subtitle: `${stats?.pendingOrders ?? 0} pending approval`,
+            subtitle: `${n(stats.pendingOrders)} pending approval`,
           },
           {
             title: "Revenue",
-            value: stats?.totalRevenue ?? 0,
+            value: n(stats.totalRevenue),
             icon: <AttachMoneyRounded />,
             color: "#4CAF82",
-            trend: stats?.revenueGrowth,
+            trend: n(stats.revenueGrowth),
             delay: 0.07,
             sparkline: sparklines.revenue,
             prefix: "$",
           },
           {
             title: "Pending Orders",
-            value: stats?.pendingOrders ?? 0,
+            value: n(stats.pendingOrders),
             icon: <HourglassEmptyRounded />,
             color: "#E8A838",
             delay: 0.14,
@@ -301,43 +258,37 @@ export default function DashboardPage() {
           },
           {
             title: "Admins",
-            value: stats?.totalUsers ?? 0,
+            value: n(stats.totalUsers),
             icon: <PeopleRounded />,
             color: GOLD,
-            trend: stats?.userGrowth,
+            trend: n(stats.userGrowth),
             delay: 0.21,
             sparkline: sparklines.users,
-            subtitle: `${stats?.activeUsers ?? 0} active`,
+            subtitle: `${n(stats.activeUsers)} active`,
           },
           {
             title: "Blog Posts",
-            value: stats?.totalBlogPosts ?? 0,
+            value: n(stats.totalBlogPosts),
             icon: <ArticleRounded />,
             color: "#6B8CAE",
             delay: 0.28,
             sparkline: sparklines.posts,
-            subtitle: `${stats?.publishedBlogPosts ?? 0} published`,
+            subtitle: `${n(stats.publishedBlogPosts)} published`,
           },
           {
             title: "Templates",
-            value: stats?.totalTemplates ?? 0,
+            value: n(stats.totalTemplates),
             icon: <LayersRounded />,
             color: "#C97E4C",
             delay: 0.35,
             sparkline: sparklines.templates,
-            subtitle: `${stats?.activeTemplates ?? 0} active`,
+            subtitle: `${n(stats.activeTemplates)} active`,
           },
         ].map((s) => (
           <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={s.title}>
-            {statsLoading ? (
-              <Skeleton
-                variant="rounded"
-                height={160}
-                sx={{ borderRadius: 3 }}
-              />
-            ) : (
-              <StatCard {...s} />
-            )}
+            {statsLoading
+              ? <Skeleton variant="rounded" height={160} sx={{ borderRadius: 3 }} />
+              : <StatCard {...s} />}
           </Grid>
         ))}
       </Grid>
@@ -345,43 +296,20 @@ export default function DashboardPage() {
       <Grid container spacing={2.5}>
         {/* ── Revenue chart ── */}
         <Grid size={{ xs: 12, lg: 8 }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
             <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
               <Box sx={{ px: 3, pt: 2.5, pb: 0 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    mb: 1,
-                  }}
-                >
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
                   <Box>
-                    <Typography variant="h6" sx={{ fontSize: "1rem" }}>
-                      Revenue Analytics
-                    </Typography>
-                    <Typography
-                      sx={{ color: "text.secondary", fontSize: "0.8rem" }}
-                    >
+                    <Typography variant="h6" sx={{ fontSize: "1rem" }}>Revenue Analytics</Typography>
+                    <Typography sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
                       Monthly performance with order volume
                     </Typography>
                   </Box>
                   <Tabs
                     value={chartTab}
                     onChange={(_, v) => setChartTab(v)}
-                    sx={{
-                      minHeight: 32,
-                      "& .MuiTab-root": {
-                        minHeight: 32,
-                        py: 0.5,
-                        px: 1.5,
-                        fontSize: "0.75rem",
-                      },
-                    }}
+                    sx={{ minHeight: 32, "& .MuiTab-root": { minHeight: 32, py: 0.5, px: 1.5, fontSize: "0.75rem" } }}
                   >
                     <Tab label="Revenue" />
                     <Tab label="Orders" />
@@ -391,56 +319,21 @@ export default function DashboardPage() {
               </Box>
               <Box sx={{ px: 1, pb: 2 }}>
                 {statsLoading ? (
-                  <Skeleton
-                    variant="rectangular"
-                    height={260}
-                    sx={{ borderRadius: 2, mx: 1 }}
-                  />
+                  <Skeleton variant="rectangular" height={260} sx={{ borderRadius: 2, mx: 1 }} />
                 ) : (
                   <ResponsiveContainer width="100%" height={260}>
                     <ComposedChart data={monthlyRevenue}>
                       <defs>
-                        <linearGradient
-                          id="revGrad"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor={GOLD}
-                            stopOpacity={0.3}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor={GOLD}
-                            stopOpacity={0}
-                          />
+                        <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={GOLD} stopOpacity={0.3} />
+                          <stop offset="100%" stopColor={GOLD} stopOpacity={0} />
                         </linearGradient>
-                        <linearGradient
-                          id="ordGrad"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="#4A8FD4"
-                            stopOpacity={0.25}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="#4A8FD4"
-                            stopOpacity={0}
-                          />
+                        <linearGradient id="ordGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#4A8FD4" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="#4A8FD4" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid
-                        stroke="rgba(255,255,255,0.04)"
-                        strokeDasharray="4 4"
-                      />
+                      <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="4 4" />
                       <XAxis
                         dataKey="month"
                         tick={{ fill: "rgba(240,237,232,0.4)", fontSize: 11 }}
@@ -467,10 +360,10 @@ export default function DashboardPage() {
                       )}
                       <RTooltip
                         contentStyle={CHART_TOOLTIP_STYLE}
-                        formatter={(
-                          value: number | undefined,
-                          name: string | undefined,
-                        ) => [value?.toLocaleString() ?? "", name ?? ""]}
+                        formatter={(value: unknown, name: unknown) => [
+                          n(value).toLocaleString(),
+                          String(name ?? ""),
+                        ]}
                       />
                       {(chartTab === 0 || chartTab === 2) && (
                         <Area
@@ -518,31 +411,14 @@ export default function DashboardPage() {
             transition={{ delay: 0.38 }}
             style={{ height: "100%" }}
           >
-            <Paper
-              sx={{
-                p: 3,
-                borderRadius: 3,
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <Typography variant="h6" sx={{ mb: 0.5, fontSize: "1rem" }}>
-                Orders by Status
-              </Typography>
-              <Typography
-                sx={{ color: "text.secondary", fontSize: "0.8rem", mb: 2 }}
-              >
+            <Paper sx={{ p: 3, borderRadius: 3, height: "100%", display: "flex", flexDirection: "column" }}>
+              <Typography variant="h6" sx={{ mb: 0.5, fontSize: "1rem" }}>Orders by Status</Typography>
+              <Typography sx={{ color: "text.secondary", fontSize: "0.8rem", mb: 2 }}>
                 Current distribution
               </Typography>
 
               {statsLoading ? (
-                <Skeleton
-                  variant="circular"
-                  width={160}
-                  height={160}
-                  sx={{ mx: "auto", mb: 2 }}
-                />
+                <Skeleton variant="circular" width={160} height={160} sx={{ mx: "auto", mb: 2 }} />
               ) : (
                 <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
                   <PieChart width={160} height={160}>
@@ -557,10 +433,7 @@ export default function DashboardPage() {
                       paddingAngle={3}
                     >
                       {ordersByStatus.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={PIE_COLORS[i % PIE_COLORS.length]}
-                        />
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                       ))}
                     </Pie>
                     <RTooltip contentStyle={CHART_TOOLTIP_STYLE} />
@@ -568,63 +441,31 @@ export default function DashboardPage() {
                 </Box>
               )}
 
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 0.75,
-                  mt: "auto",
-                }}
-              >
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, mt: "auto" }}>
                 {ordersByStatus.map((s, i) => (
-                  <Box
-                    key={s.status}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
+                  <Box key={s.status} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <FiberManualRecordRounded
-                        sx={{
-                          fontSize: 10,
-                          color: PIE_COLORS[i % PIE_COLORS.length],
-                        }}
+                        sx={{ fontSize: 10, color: PIE_COLORS[i % PIE_COLORS.length] }}
                       />
-                      <Typography
-                        sx={{
-                          fontSize: "0.8rem",
-                          color: "text.secondary",
-                          textTransform: "capitalize",
-                        }}
-                      >
+                      <Typography sx={{ fontSize: "0.8rem", color: "text.secondary", textTransform: "capitalize" }}>
                         {s.status.replace(/_/g, " ")}
                       </Typography>
                     </Box>
                     <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                       <Typography sx={{ fontSize: "0.8rem", fontWeight: 600 }}>
-                        {s.count}
+                        {n(s.count).toLocaleString()}
                       </Typography>
-                      {stats?.totalOrders ? (
-                        <Typography
-                          sx={{ fontSize: "0.7rem", color: "text.disabled" }}
-                        >
-                          {Math.round((s.count / stats.totalOrders) * 100)}%
+                      {totalOrders > 0 && (
+                        <Typography sx={{ fontSize: "0.7rem", color: "text.disabled" }}>
+                          {Math.round((n(s.count) / totalOrders) * 100)}%
                         </Typography>
-                      ) : null}
+                      )}
                     </Box>
                   </Box>
                 ))}
                 {ordersByStatus.length === 0 && !statsLoading && (
-                  <Typography
-                    sx={{
-                      fontSize: "0.8rem",
-                      color: "text.disabled",
-                      textAlign: "center",
-                      py: 2,
-                    }}
-                  >
+                  <Typography sx={{ fontSize: "0.8rem", color: "text.disabled", textAlign: "center", py: 2 }}>
                     No orders yet
                   </Typography>
                 )}
@@ -635,39 +476,16 @@ export default function DashboardPage() {
 
         {/* ── Revenue heatmap ── */}
         <Grid size={{ xs: 12, md: 7 }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.44 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.44 }}>
             <Paper sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6" sx={{ mb: 0.5, fontSize: "1rem" }}>
-                Revenue Heatmap
-              </Typography>
-              <Typography
-                sx={{ color: "text.secondary", fontSize: "0.8rem", mb: 2.5 }}
-              >
+              <Typography variant="h6" sx={{ mb: 0.5, fontSize: "1rem" }}>Revenue Heatmap</Typography>
+              <Typography sx={{ color: "text.secondary", fontSize: "0.8rem", mb: 2.5 }}>
                 Daily revenue — last 12 weeks
               </Typography>
 
-              <Box
-                sx={{
-                  display: "flex",
-                  gap: 0.4,
-                  mb: 0.5,
-                  pl: { xs: 0, sm: "4px" },
-                }}
-              >
+              <Box sx={{ display: "flex", gap: 0.4, mb: 0.5, pl: { xs: 0, sm: "4px" } }}>
                 {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-                  <Typography
-                    key={i}
-                    sx={{
-                      width: { xs: 10, sm: 14 },
-                      fontSize: "0.6rem",
-                      color: "rgba(240,237,232,0.25)",
-                      textAlign: "center",
-                    }}
-                  >
+                  <Typography key={i} sx={{ width: { xs: 10, sm: 14 }, fontSize: "0.6rem", color: "rgba(240,237,232,0.25)", textAlign: "center" }}>
                     {d}
                   </Typography>
                 ))}
@@ -675,62 +493,27 @@ export default function DashboardPage() {
 
               <Box sx={{ display: "flex", gap: 0.4, overflowX: "auto" }}>
                 {Array.from({ length: 12 }, (_, week) => (
-                  <Box
-                    key={week}
-                    sx={{ display: "flex", flexDirection: "column", gap: 0.4 }}
-                  >
+                  <Box key={week} sx={{ display: "flex", flexDirection: "column", gap: 0.4 }}>
                     {Array.from({ length: 7 }, (_, day) => {
                       const idx = week * 7 + day;
                       const item = heatData[idx];
-                      if (!item)
-                        return (
-                          <Box
-                            key={day}
-                            sx={{
-                              width: { xs: 10, sm: 14 },
-                              height: { xs: 10, sm: 14 },
-                            }}
-                          />
-                        );
-                      return (
-                        <HeatCell
-                          key={day}
-                          value={item.value}
-                          max={heatMax}
-                          date={item.date}
-                        />
-                      );
+                      if (!item) return <Box key={day} sx={{ width: { xs: 10, sm: 14 }, height: { xs: 10, sm: 14 } }} />;
+                      return <HeatCell key={day} value={item.value} max={heatMax} date={item.date} />;
                     })}
                   </Box>
                 ))}
               </Box>
 
-              <Box
-                sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 2 }}
-              >
-                <Typography
-                  sx={{ fontSize: "0.65rem", color: "text.disabled", mr: 0.5 }}
-                >
-                  Less
-                </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 2 }}>
+                <Typography sx={{ fontSize: "0.65rem", color: "text.disabled", mr: 0.5 }}>Less</Typography>
                 {[0, 0.15, 0.3, 0.55, 0.85].map((op) => (
-                  <Box
-                    key={op}
-                    sx={{
-                      width: { xs: 10, sm: 14 },
-                      height: { xs: 10, sm: 14 },
-                      borderRadius: 0.5,
-                      background:
-                        op === 0 ? alpha("#fff", 0.04) : alpha(GOLD, op),
-                      border: "1px solid rgba(255,255,255,0.04)",
-                    }}
-                  />
+                  <Box key={op} sx={{
+                    width: { xs: 10, sm: 14 }, height: { xs: 10, sm: 14 }, borderRadius: 0.5,
+                    background: op === 0 ? alpha("#fff", 0.04) : alpha(GOLD, op),
+                    border: "1px solid rgba(255,255,255,0.04)",
+                  }} />
                 ))}
-                <Typography
-                  sx={{ fontSize: "0.65rem", color: "text.disabled", ml: 0.5 }}
-                >
-                  More
-                </Typography>
+                <Typography sx={{ fontSize: "0.65rem", color: "text.disabled", ml: 0.5 }}>More</Typography>
               </Box>
             </Paper>
           </motion.div>
@@ -738,54 +521,21 @@ export default function DashboardPage() {
 
         {/* ── Conversion funnel ── */}
         <Grid size={{ xs: 12, md: 5 }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
             <Paper sx={{ p: 3, borderRadius: 3, height: "100%" }}>
-              <Typography variant="h6" sx={{ mb: 0.5, fontSize: "1rem" }}>
-                Conversion Funnel
-              </Typography>
-              <Typography
-                sx={{ color: "text.secondary", fontSize: "0.8rem", mb: 3 }}
-              >
+              <Typography variant="h6" sx={{ mb: 0.5, fontSize: "1rem" }}>Conversion Funnel</Typography>
+              <Typography sx={{ color: "text.secondary", fontSize: "0.8rem", mb: 3 }}>
                 Subscriber → Purchase pipeline
               </Typography>
 
               {[
-                {
-                  label: "Subscribers",
-                  value: funnel.visitors,
-                  color: "#6B8CAE",
-                  pct: undefined,
-                },
-                {
-                  label: "Signups",
-                  value: funnel.signups,
-                  color: GOLD,
-                  pct: funnel.visitors
-                    ? Math.round((funnel.signups / funnel.visitors) * 100)
-                    : 0,
-                },
-                {
-                  label: "Test Completed",
-                  value: funnel.testCompleted,
-                  color: "#4A8FD4",
-                  pct: funnel.signups
-                    ? Math.round((funnel.testCompleted / funnel.signups) * 100)
-                    : 0,
-                },
-                {
-                  label: "Purchased",
-                  value: funnel.purchased,
-                  color: "#4CAF82",
-                  pct: funnel.testCompleted
-                    ? Math.round(
-                        (funnel.purchased / funnel.testCompleted) * 100,
-                      )
-                    : 0,
-                },
+                { label: "Subscribers",    value: funnel.visitors,      color: "#6B8CAE", pct: undefined },
+                { label: "Signups",        value: funnel.signups,       color: GOLD,
+                  pct: funnel.visitors ? Math.round((funnel.signups / funnel.visitors) * 100) : 0 },
+                { label: "Test Completed", value: funnel.testCompleted, color: "#4A8FD4",
+                  pct: funnel.signups ? Math.round((funnel.testCompleted / funnel.signups) * 100) : 0 },
+                { label: "Purchased",      value: funnel.purchased,     color: "#4CAF82",
+                  pct: funnel.testCompleted ? Math.round((funnel.purchased / funnel.testCompleted) * 100) : 0 },
               ].map((step) => (
                 <FunnelBar
                   key={step.label}
@@ -797,26 +547,17 @@ export default function DashboardPage() {
                 />
               ))}
 
-              <Box
-                sx={{
-                  mt: 2.5,
-                  p: 1.5,
-                  borderRadius: 2,
-                  background: alpha(GOLD, 0.06),
-                  border: `1px solid ${alpha(GOLD, 0.15)}`,
-                  display: "flex",
-                  justifyContent: "space-between",
-                }}
-              >
-                <Typography
-                  sx={{ fontSize: "0.8rem", color: "text.secondary" }}
-                >
+              <Box sx={{
+                mt: 2.5, p: 1.5, borderRadius: 2,
+                background: alpha(GOLD, 0.06),
+                border: `1px solid ${alpha(GOLD, 0.15)}`,
+                display: "flex", justifyContent: "space-between",
+              }}>
+                <Typography sx={{ fontSize: "0.8rem", color: "text.secondary" }}>
                   Overall conversion
                 </Typography>
-                <Typography
-                  sx={{ fontSize: "0.8rem", fontWeight: 700, color: GOLD }}
-                >
-                  {funnel.visitors
+                <Typography sx={{ fontSize: "0.8rem", fontWeight: 700, color: GOLD }}>
+                  {funnel.visitors > 0
                     ? `${((funnel.purchased / funnel.visitors) * 100).toFixed(1)}%`
                     : "—"}
                 </Typography>
@@ -827,27 +568,12 @@ export default function DashboardPage() {
 
         {/* ── Live activity feed ── */}
         <Grid size={{ xs: 12 }}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.55 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
             <Paper sx={{ p: 3, borderRadius: 3 }}>
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 2.5,
-                }}
-              >
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2.5 }}>
                 <Box>
-                  <Typography variant="h6" sx={{ mb: 0.25, fontSize: "1rem" }}>
-                    Live Activity Feed
-                  </Typography>
-                  <Typography
-                    sx={{ color: "text.secondary", fontSize: "0.8rem" }}
-                  >
+                  <Typography variant="h6" sx={{ mb: 0.25, fontSize: "1rem" }}>Live Activity Feed</Typography>
+                  <Typography sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
                     Latest admin actions — refreshes every 30s
                   </Typography>
                 </Box>
@@ -856,17 +582,9 @@ export default function DashboardPage() {
                     component={motion.div}
                     animate={{ opacity: [1, 0.3, 1] }}
                     transition={{ duration: 2, repeat: Infinity }}
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: "#4CAF82",
-                      boxShadow: "0 0 8px #4CAF82",
-                    }}
+                    sx={{ width: 8, height: 8, borderRadius: "50%", background: "#4CAF82", boxShadow: "0 0 8px #4CAF82" }}
                   />
-                  <Typography sx={{ fontSize: "0.72rem", color: "#4CAF82" }}>
-                    LIVE
-                  </Typography>
+                  <Typography sx={{ fontSize: "0.72rem", color: "#4CAF82" }}>LIVE</Typography>
                 </Box>
               </Box>
 
@@ -876,24 +594,12 @@ export default function DashboardPage() {
                     <Skeleton variant="circular" width={32} height={32} />
                     <Box sx={{ flex: 1 }}>
                       <Skeleton variant="text" width="60%" height={16} />
-                      <Skeleton
-                        variant="text"
-                        width="40%"
-                        height={13}
-                        sx={{ mt: 0.5 }}
-                      />
+                      <Skeleton variant="text" width="40%" height={13} sx={{ mt: 0.5 }} />
                     </Box>
                   </Box>
                 ))
               ) : activity.length === 0 ? (
-                <Typography
-                  sx={{
-                    color: "text.disabled",
-                    fontSize: "0.85rem",
-                    textAlign: "center",
-                    py: 4,
-                  }}
-                >
+                <Typography sx={{ color: "text.disabled", fontSize: "0.85rem", textAlign: "center", py: 4 }}>
                   No activity yet
                 </Typography>
               ) : (
@@ -904,79 +610,40 @@ export default function DashboardPage() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.04 }}
                   >
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 2,
-                        py: 1.5,
-                        px: 2,
-                        borderRadius: 2,
-                        transition: "background 0.2s",
-                        "&:hover": { background: alpha("#fff", 0.03) },
-                        borderBottom:
-                          i < activity.length - 1
-                            ? "1px solid rgba(255,255,255,0.04)"
-                            : "none",
-                      }}
-                    >
-                      <Avatar
-                        sx={{
-                          width: 30,
-                          height: 30,
-                          fontSize: "0.72rem",
-                          fontWeight: 700,
-                          flexShrink: 0,
-                          background: `linear-gradient(135deg, ${alpha(GOLD, 0.25)}, ${alpha(GOLD, 0.1)})`,
-                          color: GOLD,
-                        }}
-                      >
-                        {log.adminName?.charAt(0)?.toUpperCase()}
+                    <Box sx={{
+                      display: "flex", alignItems: "center", gap: 2,
+                      py: 1.5, px: 2, borderRadius: 2,
+                      transition: "background 0.2s",
+                      "&:hover": { background: alpha("#fff", 0.03) },
+                      borderBottom: i < activity.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    }}>
+                      <Avatar sx={{
+                        width: 30, height: 30, fontSize: "0.72rem", fontWeight: 700, flexShrink: 0,
+                        background: `linear-gradient(135deg, ${alpha(GOLD, 0.25)}, ${alpha(GOLD, 0.1)})`,
+                        color: GOLD,
+                      }}>
+                        {(log.adminName ?? "?").charAt(0).toUpperCase()}
                       </Avatar>
                       <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography
-                          sx={{ fontSize: "0.84rem", lineHeight: 1.4 }}
-                        >
-                          <Box
-                            component="span"
-                            sx={{ fontWeight: 600, color: "#F0EDE8" }}
-                          >
-                            {log.adminName}
+                        <Typography sx={{ fontSize: "0.84rem", lineHeight: 1.4 }}>
+                          <Box component="span" sx={{ fontWeight: 600, color: "#F0EDE8" }}>
+                            {log.adminName ?? "Unknown"}
                           </Box>{" "}
-                          <Box
-                            component="span"
-                            sx={{ color: "text.secondary" }}
-                          >
+                          <Box component="span" sx={{ color: "text.secondary" }}>
                             {log.action}
                           </Box>{" "}
-                          <Box
-                            component="span"
-                            sx={{ fontWeight: 500, color: GOLD }}
-                          >
+                          <Box component="span" sx={{ fontWeight: 500, color: GOLD }}>
                             {log.resource}
                           </Box>
                         </Typography>
                         {log.ip && (
-                          <Typography
-                            sx={{
-                              fontSize: "0.68rem",
-                              color: "text.disabled",
-                              mt: 0.2,
-                            }}
-                          >
+                          <Typography sx={{ fontSize: "0.68rem", color: "text.disabled", mt: 0.2 }}>
                             IP: {log.ip}
                           </Typography>
                         )}
                       </Box>
-                      <Typography
-                        sx={{
-                          fontSize: "0.72rem",
-                          color: "text.disabled",
-                          whiteSpace: "nowrap",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {dayjs(log.timestamp).fromNow()}
+                      <Typography sx={{ fontSize: "0.72rem", color: "text.disabled", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        {log.timestamp ? dayjs(log.timestamp).fromNow() : "—"}
                       </Typography>
                     </Box>
                   </motion.div>
