@@ -189,7 +189,7 @@ function toSlug(value: string): string {
 }
 
 function formatINR(paise: number): string {
-  return `₹${paise.toLocaleString("en-IN")}`;
+  return `$${paise.toLocaleString("en-IN")}`;
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
