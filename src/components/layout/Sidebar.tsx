@@ -90,6 +90,12 @@ const NAV_GROUPS = [
     ],
   },
   {
+    title: "Founder's Leads",
+    items: [
+      { label: "Leads", icon: <PeopleRounded />, href: "/founder-leads" },
+    ],
+  },
+  {
     title: "Account",
     items: [
       { label: "Profile", icon: <AccountCircleRounded />, href: "/profile" },
