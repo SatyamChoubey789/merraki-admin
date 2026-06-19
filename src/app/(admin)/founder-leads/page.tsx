@@ -603,7 +603,7 @@ export default function FoundersLeadsPage() {
   return (
     <PageWrapper
       title="Founders Test Leads"
-      subtitle="Submissions from the public Founder Finance Test"
+      subtitle="Submissions from the Founder Personality Test"
       actions={
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
           <Typography sx={{ fontSize: "0.85rem", color: "text.secondary" }}>
