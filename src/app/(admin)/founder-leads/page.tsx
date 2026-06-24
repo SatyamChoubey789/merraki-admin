@@ -394,7 +394,7 @@ export default function FoundersLeadsPage() {
   const openEmailDialog = (lead: FounderLead) => {
     resetEmail({
       subject: `Your Founder Finance Test results — ${lead.name}`,
-      message: `Hi ${lead.name.split(" ")[0]},\n\nThank you for completing the Founder Finance Test. Based on your results, you scored ${lead.total_score}/${lead.total_max} — ${lead.personality_title}.\n\nWe'd love to show you how Servigroww can help you strengthen your financial systems.\n\nWould you be open to a quick 20-minute call this week?\n\nBest,\nThe Servigroww Team`,
+      message: `Hi ${lead.name.split(" ")[0]},\n\nThank you for completing the Founder Finance Test. Based on your results, you scored ${lead.total_score}/${lead.total_max} — ${lead.personality_title}.\n\nWe'd love to show you how Merraki can help you strengthen your financial systems.\n\nWould you be open to a quick 20-minute call this week?\n\nBest,\nThe Merraki Team`,
     });
     setEmailLead(lead);
     setPanelOpen(false);
