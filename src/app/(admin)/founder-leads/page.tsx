@@ -375,11 +375,11 @@ export default function FoundersLeadsPage() {
 
   const { data: leadsData, isLoading: leadsLoading, mutate: mutateLeads } =
     useSWR<PaginatedResponse<FounderLead>>(
-      `/admin/founders-leads?page=${page + 1}&limit=25${statusParam}${searchParam}`,
+      `/admin/founder-leads?page=${page + 1}&limit=25${statusParam}${searchParam}`,
     );
 
   const { data: statsData, isLoading: statsLoading } =
-    useSWR<{ success: boolean; data: LeadStats }>("/admin/founders-leads/stats");
+    useSWR<{ success: boolean; data: LeadStats }>("/admin/founder-leads/stats");
 
   const leads: FounderLead[] = leadsData?.data ?? [];
   const total = leadsData?.pagination?.total ?? 0;
@@ -404,7 +404,7 @@ export default function FoundersLeadsPage() {
     if (!emailLead) return;
     setEmailLoading(true);
     try {
-      await api.post(`/admin/founders-leads/${emailLead.id}/email`, formData);
+      await api.post(`/admin/founder-leads/${emailLead.id}/email`, formData);
       enqueueSnackbar("Email sent", { variant: "success" });
       setEmailLead(null);
       await mutateLeads();
@@ -418,7 +418,7 @@ export default function FoundersLeadsPage() {
   // ── Mark contacted ─────────────────────────────────────────────────────────
   const handleMarkContacted = async (lead: FounderLead) => {
     try {
-      await api.patch(`/admin/founders-leads/${lead.id}/status`, { status: "contacted" });
+      await api.patch(`/admin/founder-leads/${lead.id}/status`, { status: "contacted" });
       enqueueSnackbar(`${lead.name} marked as contacted`, { variant: "success" });
       setPanelLead((prev) => prev?.id === lead.id ? { ...prev, status: "contacted" } : prev);
       await mutateLeads();
@@ -432,7 +432,7 @@ export default function FoundersLeadsPage() {
     if (!deleteId) return;
     setDeleteLoading(true);
     try {
-      await api.delete(`/admin/founders-leads/${deleteId}`);
+      await api.delete(`/admin/founder-leads/${deleteId}`);
       enqueueSnackbar("Lead removed", { variant: "success" });
       setDeleteId(null);
       if (panelLead?.id === deleteId) setPanelOpen(false);
@@ -449,13 +449,13 @@ export default function FoundersLeadsPage() {
     setExportLoading(true);
     try {
       const response = await api.get(
-        `/admin/founders-leads/export?format=${format}${statusParam}${searchParam}`,
+        `/admin/founder-leads/export?format=${format}${statusParam}${searchParam}`,
         { responseType: "blob" },
       );
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `founders_leads_${dayjs().format("YYYY-MM-DD")}.${format}`);
+      link.setAttribute("download", `founder_leads_${dayjs().format("YYYY-MM-DD")}.${format}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
